@@ -1,13 +1,9 @@
-package ch.sumry.core.model
+package ch.sumry.core.module.transaction.model
 
-import jakarta.persistence.Entity
-import jakarta.persistence.FetchType
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.Id
-import jakarta.persistence.JoinColumn
-import jakarta.persistence.ManyToOne
-import jakarta.persistence.Table
-import java.util.UUID
+import ch.sumry.core.module.user.model.User
+import ch.sumry.core.module.user.model.UserAccount
+import jakarta.persistence.*
+import java.util.*
 
 @Entity
 @Table(name = "transactions")

@@ -1,4 +1,4 @@
-package ch.sumry.core.dto
+package ch.sumry.core.module.user.dto
 
 data class UserCreateDto (
     val username: String,

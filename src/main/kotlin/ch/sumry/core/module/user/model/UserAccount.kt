@@ -1,4 +1,4 @@
-package ch.sumry.core.model
+package ch.sumry.core.module.user.model
 
 import jakarta.persistence.*
 import java.util.*

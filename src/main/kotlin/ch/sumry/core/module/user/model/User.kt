@@ -1,7 +1,9 @@
-package ch.sumry.core.model
+package ch.sumry.core.module.user.model
 
+import ch.sumry.core.module.transaction.model.Transaction
 import jakarta.persistence.*
 import java.util.*
+
 
 @Entity
 @Table(name = "users")

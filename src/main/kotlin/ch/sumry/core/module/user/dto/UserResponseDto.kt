@@ -1,9 +1,9 @@
-package ch.sumry.core.dto
+package ch.sumry.core.module.user.dto
 
 import java.util.*
 
 data class UserResponseDto(
-    val id: UUID,
+    val id: UUID?,
     val username: String,
     val email: String,
 )

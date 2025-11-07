@@ -1,5 +1,7 @@
-package ch.sumry.core.model
+package ch.sumry.core.module.transaction.model
 
+import ch.sumry.core.module.user.model.User
+import ch.sumry.core.module.user.model.UserAccount
 import jakarta.persistence.*
 import java.time.LocalDate
 import java.util.*

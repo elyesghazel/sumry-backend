@@ -1,4 +1,4 @@
-package ch.sumry.core.types
+package ch.sumry.core.module.budget.types
 
 enum class BudgetType {
     DAILY,
