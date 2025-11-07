@@ -24,6 +24,8 @@ class User(
     @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
     var transactions: MutableList<Transaction> = mutableListOf()
 ) {
+
+    constructor() : this(UUID.randomUUID(), "", "", "", mutableListOf(), mutableListOf())
     fun encodePassword(rawPassword: String) {
         val encoder = org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()
         this.password = encoder.encode(rawPassword)

@@ -15,8 +15,8 @@ object UserMapper {
 
     fun fromRegisterDto(dto: UserCreateDto): User =
         User(
-            username = dto.username,
-            email = dto.email,
+            username = dto.username!!,
+            email = dto.email!!,
             password = dto.password
         )
 }
