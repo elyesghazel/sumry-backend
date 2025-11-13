@@ -27,6 +27,7 @@ CREATE TABLE transactions
     id              UUID NOT NULL,
     amount          DOUBLE PRECISION,
     description     VARCHAR(255),
+    date            TIMESTAMP WITHOUT TIME ZONE,
     user_account_id UUID,
     user_id         UUID,
     CONSTRAINT pk_transactions PRIMARY KEY (id)
@@ -53,6 +54,16 @@ CREATE TABLE user_budgets
     CONSTRAINT pk_user_budgets PRIMARY KEY (id)
 );
 
+CREATE TABLE user_preferences
+(
+    id                 UUID NOT NULL,
+    user_id            UUID NOT NULL,
+    preferred_currency VARCHAR(255),
+    theme              VARCHAR(255),
+    language           VARCHAR(255),
+    CONSTRAINT pk_user_preferences PRIMARY KEY (id)
+);
+
 CREATE TABLE users
 (
     id       UUID         NOT NULL,
@@ -61,6 +72,9 @@ CREATE TABLE users
     password VARCHAR(255) NOT NULL,
     CONSTRAINT pk_users PRIMARY KEY (id)
 );
+
+ALTER TABLE user_preferences
+    ADD CONSTRAINT uc_user_preferences_user UNIQUE (user_id);
 
 ALTER TABLE planned_transactions
     ADD CONSTRAINT FK_PLANNED_TRANSACTIONS_ON_USER FOREIGN KEY (user_id) REFERENCES users (id);
@@ -82,3 +96,6 @@ ALTER TABLE user_budgets
 
 ALTER TABLE user_budgets
     ADD CONSTRAINT FK_USER_BUDGETS_ON_USER FOREIGN KEY (user_id) REFERENCES users (id);
+
+ALTER TABLE user_preferences
+    ADD CONSTRAINT FK_USER_PREFERENCES_ON_USER FOREIGN KEY (user_id) REFERENCES users (id);
