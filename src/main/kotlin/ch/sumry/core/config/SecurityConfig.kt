@@ -1,25 +1,55 @@
 package ch.sumry.core.config
 
-import org.apache.catalina.webresources.TomcatURLStreamHandlerFactory.disable
+import ch.sumry.core.security.JwtAuthenticationFilter
+import ch.sumry.core.security.JwtService
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+
 
 @Configuration
-class SecurityConfig {
+class SecurityConfig( private val jwtService: JwtService
+) {
 
+    val SWAGGER_UI_PATHS: Array<String> = arrayOf<String>(
+        "/swagger-ui.html",
+        "/swagger-ui/**",
+        "/v3/api-docs/**",
+        "/v3/api-docs.yaml",
+        "/swagger-resources",
+        "/swagger-resources/**",
+        "/webjars/**"
+    )
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
+
+
         http
-            .csrf { it.disable() } // disable CSRF for API testing
+            .csrf { it.disable() }
             .authorizeHttpRequests {
                 it
-                    .anyRequest().permitAll()
-            }
-            .httpBasic { disable() } // optional: disable if you only want JSON API
+                    .requestMatchers("/api/users/login").permitAll() // Allow login
+                    .requestMatchers("/swagger-ui/**").permitAll()
+                    .requestMatchers("/v3/api-docs/**").permitAll()
+                    .requestMatchers("/v3/api-docs.yaml").permitAll()
+                    .requestMatchers("/swagger-resources").permitAll()
+                    .requestMatchers("/swagger-resources/**").permitAll()
 
+                    .anyRequest().authenticated() // Secure everything else
+            }
+            .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) } // Stateless session
+
+        // Add the filter
+        http.addFilterBefore(authFilter(), UsernamePasswordAuthenticationFilter::class.java)
 
         return http.build()
+    }
+
+    @Bean
+    fun authFilter(): JwtAuthenticationFilter {
+        return JwtAuthenticationFilter(jwtService)
     }
 }

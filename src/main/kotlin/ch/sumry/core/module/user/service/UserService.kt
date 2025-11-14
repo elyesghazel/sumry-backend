@@ -1,20 +1,27 @@
 package ch.sumry.core.module.user.service
 
 import ch.sumry.core.exception.RequestException
-import ch.sumry.core.module.user.dto.*
+import ch.sumry.core.module.user.dto.auth.*
 import ch.sumry.core.module.user.mapper.UserMapper
 import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.repo.UserRepository
 import ch.sumry.core.security.JwtService
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import java.util.*
 
 @Service
 class UserService(private val repo: UserRepository, private val jwtService: JwtService) {
 
     fun getAll(): List<User> = repo.findAll()
 
-    fun create(dto: UserCreateDto): UserResponseDto {
+    fun getById(id: UUID): UserResponseDto {
+        val user = repo.findById(id).orElseThrow {
+            RequestException(HttpStatus.NOT_FOUND, "User not found")
+        }
+        return UserMapper.toDto(user)
+    }
+    fun register(dto: UserCreateDto): UserResponseDto {
         if (repo.existsByUsername(dto.username)) {
             throw RequestException(HttpStatus.CONFLICT, "Username already taken")
         }
@@ -33,8 +40,8 @@ class UserService(private val repo: UserRepository, private val jwtService: JwtS
         return UserMapper.toDto(user)
     }
 
-    fun update(dto: UserUpdateDto): UserResponseDto {
-        val user = repo.findById(dto.id).orElseThrow {
+    fun update(userId: String, dto: UserUpdateDto): UserResponseDto {
+        val user = repo.findById(UUID.fromString(userId)).orElseThrow {
             RequestException(HttpStatus.NOT_FOUND, "User not found")
         }
 
@@ -51,7 +58,7 @@ class UserService(private val repo: UserRepository, private val jwtService: JwtS
         val user = repo.findByEmail(dto.email)
 
         if (user == null) {
-            throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or passwordsigma")
+            throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
         }
 
         // 2. Check password

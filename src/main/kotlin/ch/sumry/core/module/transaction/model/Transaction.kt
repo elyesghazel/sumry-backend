@@ -16,6 +16,8 @@ class Transaction (
     var amount: Double? = null,
     var description: String? = null,
 
+    val date: Date = Date(),
+
     @ManyToOne(fetch = FetchType.LAZY)
     val userAccount: UserAccount? = null,
 
@@ -25,10 +27,11 @@ class Transaction (
 
 
 ) {
-    constructor(amount: Double, description: String, userAccount: UserAccount) : this(
+    constructor(amount: Double, description: String, date: Date, userAccount: UserAccount) : this(
         UUID.randomUUID(),
         amount,
-        description,
+    description,
+        date,
         userAccount
     )
 }

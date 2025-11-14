@@ -1,7 +1,7 @@
 package ch.sumry.core.module.user.mapper
 
-import ch.sumry.core.module.user.dto.UserCreateDto
-import ch.sumry.core.module.user.dto.UserResponseDto
+import ch.sumry.core.module.user.dto.auth.UserCreateDto
+import ch.sumry.core.module.user.dto.auth.UserResponseDto
 import ch.sumry.core.module.user.model.User
 
 object UserMapper {

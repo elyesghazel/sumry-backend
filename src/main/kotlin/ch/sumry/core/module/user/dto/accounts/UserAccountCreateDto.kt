@@ -1,4 +1,4 @@
-package ch.sumry.core.module.user.dto
+package ch.sumry.core.module.user.dto.accounts
 
 import ch.sumry.core.module.user.model.User
 

@@ -2,9 +2,11 @@ package ch.sumry.core.security
 
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
-import io.jsonwebtoken.SignatureAlgorithm
+import io.jsonwebtoken.io.Decoders
+import io.jsonwebtoken.security.Keys
 import org.springframework.stereotype.Service
 import java.util.*
+import javax.crypto.SecretKey
 
 @Service
 class JwtService(private val jwtProperties: JwtProperties) {
@@ -18,24 +20,38 @@ class JwtService(private val jwtProperties: JwtProperties) {
             .setSubject(subject)
             .setIssuedAt(now)
             .setExpiration(expiryDate)
-            .signWith(SignatureAlgorithm.HS256, jwtProperties.secret)
+            .signWith(key())
             .compact()
     }
 
-    fun validateToken(token: String): Boolean {
+    private fun key(): SecretKey {
+        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtProperties.secret))
+    }
+
+    fun validateToken(token: String?): Boolean {
+        if (token == null) return false
         return try {
-            Jwts.parser()
-                .setSigningKey(jwtProperties.secret)
+            // FIX: Use the new parserBuilder() API
+            val claims: Claims = Jwts.parserBuilder()
+                .setSigningKey(key())
+                .build()
                 .parseClaimsJws(token)
-            true
+                .body
+
+            !claims.expiration.before(Date())
         } catch (ex: Exception) {
+            // Will catch expired, malformed, etc.
             false
         }
     }
 
     fun getMailFromToken(token: String): String {
-        val claims: Claims = Jwts.parser()
-            .setSigningKey(jwtProperties.secret)
+        // FIX: Use the new parserBuilder() API
+        // This will throw an exception if the token is invalid,
+        // which is expected (it should be called after validateToken)
+        val claims: Claims = Jwts.parserBuilder()
+            .setSigningKey(key())
+            .build()
             .parseClaimsJws(token)
             .body
         return claims.subject

@@ -1,3 +1,9 @@
-package ch.sumry.core.module.user.dto
+package ch.sumry.core.module.user.dto.accounts
 
-data class UserAccountUpdateDto()
+import java.util.*
+
+data class UserAccountUpdateDto(
+    val accountID: UUID?,
+    val accountName: String?,
+    val currentBalance: Double?,
+)

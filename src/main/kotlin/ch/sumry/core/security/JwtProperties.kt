@@ -1,11 +1,9 @@
-package ch.sumry.core.security
+package ch.sumry.core.security // Or in your config package
 
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.context.annotation.Configuration
 
-@Configuration
 @ConfigurationProperties(prefix = "jwt")
-class JwtProperties {
-    lateinit var secret: String
-    var expirationMs: Long = 24 * 60 * 60 * 1000 // default 24h
-}
+data class JwtProperties(
+    val secret: String,
+    val expirationMs: Long
+)

@@ -1,4 +1,4 @@
-package ch.sumry.core.module.user.dto
+package ch.sumry.core.module.user.dto.auth
 
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank

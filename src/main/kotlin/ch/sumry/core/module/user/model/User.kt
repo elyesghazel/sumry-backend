@@ -22,10 +22,13 @@ class User(
     val accounts: MutableList<UserAccount> = mutableListOf(),
 
     @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var transactions: MutableList<Transaction> = mutableListOf()
+    var transactions: MutableList<Transaction> = mutableListOf(),
+
+    @OneToOne(mappedBy = "user", cascade = [CascadeType.ALL] )
+    var preferences: UserPreferences? = null
 ) {
 
-    constructor() : this(UUID.randomUUID(), "", "", "", mutableListOf(), mutableListOf())
+    constructor() : this(UUID.randomUUID(), "", "", "", mutableListOf(), mutableListOf(), null)
     fun encodePassword(rawPassword: String) {
         val encoder = org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()
         this.password = encoder.encode(rawPassword)

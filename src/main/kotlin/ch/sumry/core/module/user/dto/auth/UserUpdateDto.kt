@@ -1,11 +1,8 @@
-package ch.sumry.core.module.user.dto
+package ch.sumry.core.module.user.dto.auth
 
 import jakarta.validation.constraints.Email
-import java.util.*
 
 data class UserUpdateDto (
-
-    val id: UUID,
 
     val username: String? = null,
 
