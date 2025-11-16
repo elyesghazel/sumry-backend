@@ -41,7 +41,7 @@ dependencies {
 	implementation("org.flywaydb:flyway-core")
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5") // todo: fix
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
     implementation("org.springframework.modulith:spring-modulith-starter-core")
 	implementation("org.springframework.shell:spring-shell-starter")
 	compileOnly("org.projectlombok:lombok")
