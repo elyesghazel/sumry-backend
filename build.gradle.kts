@@ -10,6 +10,7 @@ group = "ch.sumry"
 version = "0.0.1-SNAPSHOT"
 description = "Core project for Sumry"
 
+val mockkVersion = "1.14.6"
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)
@@ -59,7 +60,8 @@ dependencies {
 	testImplementation("org.springframework.restdocs:spring-restdocs-mockmvc")
 	testImplementation("org.springframework.security:spring-security-test")
 	testImplementation("org.springframework.shell:spring-shell-starter-test")
-	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("io.mockk:mockk:${mockkVersion}")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("io.jsonwebtoken:jjwt-api:0.11.5")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.11.5")

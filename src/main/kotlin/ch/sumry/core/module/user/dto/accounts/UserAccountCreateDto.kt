@@ -1,9 +1,9 @@
 package ch.sumry.core.module.user.dto.accounts
 
-import ch.sumry.core.module.user.model.User
+import java.util.*
 
 data class UserAccountCreateDto(
-    val user: User,
+    val userId: UUID,
     val accountName: String,
     val currentBalance: Double = 0.0,
 
