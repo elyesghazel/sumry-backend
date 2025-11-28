@@ -54,33 +54,22 @@ class UserService(private val repo: UserRepository, private val jwtService: JwtS
     }
 
     fun login(dto: LoginDto): LoginResponseDto {
-        // 1. Find the user by email
         val user = repo.findByEmail(dto.email)
+            ?: throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
 
-        if (user == null) {
-            throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
-        }
-
-        // 2. Check password
         val passwordEncoder = org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()
         if (!passwordEncoder.matches(dto.password, user.password)) {
             throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
         }
 
-        // 3. Generate token
         val token = jwtService.generateToken(
-            subject = user.email,
-            extraClaims = mapOf("userId" to user.id.toString(), "username" to user.username)
+            subject = user.id.toString(),
+            extraClaims = mapOf("email" to user.email, "username" to user.username)
         )
 
-        // 4. Return DTO
         return LoginResponseDto(
             token = token,
             email = user.email
         )
     }
-
-
-
-
 }

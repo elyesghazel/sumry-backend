@@ -10,6 +10,7 @@ import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import java.security.Principal
 import java.util.*
 
 
@@ -18,20 +19,36 @@ class UserAccountService(private val repo: UserAccountRepository, private val us
 
     fun getAll(): List<UserAccount> = repo.findAll()
 
-    fun getAllFromUser(userId: UUID): List<UserAccount> =
-        repo.findByUserId(userId)
+    fun getAllFromUser(userId: UUID, principal: Principal): List<UserAccount> {
+        // check if userid from principal is matching with userid
+        val providedUserId = UUID.fromString(principal.name)
 
-    fun findById(accountId: UUID): UserAccountResponseDto {
+        if (providedUserId != userId) {
+            throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
+        }
+
+        return repo.findByUserId(userId)
+
+    }
+
+    fun findById(accountId: UUID, principal: Principal): UserAccountResponseDto {
         val entity = repo.findById(accountId).orElseThrow {
-            RequestException(HttpStatus.NOT_FOUND,"UserAccount with ID $accountId not found")
+            NoSuchElementException("User with ID $accountId not found")
+        }
+
+        // check if userid from principal is matching with userid
+        val providedUserId = UUID.fromString(principal.name)
+        if (providedUserId != entity.user?.id) {
+            throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
         }
         return UserAccountMapper.toDto(entity)
     }
 
-    fun create(account: UserAccountCreateDto): UserAccountResponseDto {
+    fun create(account: UserAccountCreateDto, principal: Principal): UserAccountResponseDto {
+        val userId: UUID = UUID.fromString(principal.name)
         val entity = UserAccountMapper.fromDtoToEntity(account,
-            userRepository.findById(account.userId).orElseThrow
-            { RequestException(HttpStatus.NOT_FOUND,"User with ID ${account.userId} not found") }
+            userRepository.findById(userId).orElseThrow
+            { RequestException(HttpStatus.NOT_FOUND,"User with ID $userId not found") }
         )
         // check if exists
         if (repo.existsByAccountNameAndUserId(entity.accountName, entity.user?.id)) {
@@ -41,9 +58,15 @@ class UserAccountService(private val repo: UserAccountRepository, private val us
         return UserAccountMapper.toDto(savedEntity)
     }
 
-    fun update(accountId: UUID, dto: UserAccountUpdateDto): UserAccountResponseDto {
+    fun update(accountId: UUID, dto: UserAccountUpdateDto, principal: Principal): UserAccountResponseDto {
         val entity = repo.findById(accountId).orElseThrow {
             RequestException(HttpStatus.NOT_FOUND,"UserAccount with ID $accountId not found")
+        }
+
+        val userId = UUID.fromString(principal.name)
+
+        if (entity.user?.id != userId ) {
+            throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
         }
 
         entity.accountName = dto.accountName ?: entity.accountName
@@ -52,9 +75,15 @@ class UserAccountService(private val repo: UserAccountRepository, private val us
         val updatedEntity = repo.save(entity)
         return UserAccountMapper.toDto(updatedEntity)
     }
-    fun updateBalance(accountId: UUID, dto: UserAccountUpdateDto): UserAccountResponseDto {
+    fun updateBalance(accountId: UUID, dto: UserAccountUpdateDto, principal: Principal): UserAccountResponseDto {
         val entity = repo.findById(accountId).orElseThrow {
             RequestException(HttpStatus.NOT_FOUND,"UserAccount with ID $accountId not found")
+        }
+
+        val userId = UUID.fromString(principal.name)
+
+        if (entity.user?.id != userId ) {
+            throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
         }
 
         entity.currentBalance = dto.currentBalance ?: entity.currentBalance
@@ -63,9 +92,14 @@ class UserAccountService(private val repo: UserAccountRepository, private val us
         return UserAccountMapper.toDto(updatedEntity)
     }
 
-    fun delete(accountId: UUID): Boolean {
+    fun delete(accountId: UUID, principal: Principal): Boolean {
         val entity = repo.findById(accountId).orElseThrow {
-            RequestException(HttpStatus.NOT_FOUND,"UserAccount with ID $accountId not found")
+            NoSuchElementException("UserAccount with ID $accountId not found")
+        }
+        val userId = UUID.fromString(principal.name)
+
+        if (entity.user?.id != userId) {
+            throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
         }
         repo.delete(entity)
         return true

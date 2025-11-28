@@ -1,9 +1,9 @@
 package ch.sumry.core.module.user.dto.accounts
 
-import java.util.*
+import jakarta.validation.constraints.NotBlank
 
 data class UserAccountCreateDto(
-    val userId: UUID,
+    @field:NotBlank(message = "Account name cannot be blank")
     val accountName: String,
     val currentBalance: Double = 0.0,
 

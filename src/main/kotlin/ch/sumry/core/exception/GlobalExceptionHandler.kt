@@ -25,16 +25,37 @@ class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
-    fun handleValidationExceptions(ex: MethodArgumentNotValidException): ResponseEntity<Map<String, String>> {
-        val errors = ex.bindingResult.fieldErrors
-            .associate { it.field to (it.defaultMessage ?: "Invalid value") }
-        return ResponseEntity(errors, HttpStatus.BAD_REQUEST)
+    fun handleMethodArgumentNotValid(
+        ex: MethodArgumentNotValidException,
+    ): ResponseEntity<Map<String, Any>> {
+
+        // Collect all validation errors
+        val errors = ex.bindingResult.fieldErrors.map {
+            mapOf("field" to it.field, "message" to it.defaultMessage)
+        }
+
+        val errorBody = mapOf(
+            "status" to HttpStatus.BAD_REQUEST.value(),
+            "error" to "Bad Request",
+            "validationErrors" to errors
+        )
+
+        return ResponseEntity(errorBody, HttpStatus.BAD_REQUEST)
     }
 
     @ExceptionHandler(HttpMessageNotReadableException::class as KClass<out Throwable>)
     fun handleMessageNotReadable(ex: Exception): ResponseEntity<Map<String, String>> {
         val body = mapOf("error" to "Invalid JSON format")
         return ResponseEntity(body, HttpStatus.BAD_REQUEST)
+    }
+
+    @ExceptionHandler(NoSuchElementException::class)
+    fun handleNoSuchElementException(ex: NoSuchElementException): ResponseEntity<Any> {
+        // You can return a custom error body here, but for simplicity, we return a standard 404
+        val errorBody = mapOf("error" to "Not Found", "message" to ex.message)
+        return ResponseEntity
+            .status(HttpStatus.NOT_FOUND) // Sets the 404 status code
+            .body(errorBody)
     }
 
 }
