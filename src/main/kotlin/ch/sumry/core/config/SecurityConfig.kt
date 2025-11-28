@@ -14,15 +14,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 class SecurityConfig( private val jwtService: JwtService
 ) {
 
-    val SWAGGER_UI_PATHS: Array<String> = arrayOf<String>(
-        "/swagger-ui.html",
-        "/swagger-ui/**",
-        "/v3/api-docs/**",
-        "/v3/api-docs.yaml",
-        "/swagger-resources",
-        "/swagger-resources/**",
-        "/webjars/**"
-    )
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
 
@@ -32,6 +23,7 @@ class SecurityConfig( private val jwtService: JwtService
             .authorizeHttpRequests {
                 it
                     .requestMatchers("/api/users/login").permitAll() // Allow login
+                    .requestMatchers("/api/users/register").permitAll() // Allow registration
                     .requestMatchers("/swagger-ui/**").permitAll()
                     .requestMatchers("/v3/api-docs/**").permitAll()
                     .requestMatchers("/v3/api-docs.yaml").permitAll()

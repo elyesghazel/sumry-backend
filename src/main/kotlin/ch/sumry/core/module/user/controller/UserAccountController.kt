@@ -30,12 +30,18 @@ class UserAccountController(private val service: UserAccountService) {
         service.findById(accountId)
 
     @PostMapping
-    fun create(@Valid @RequestBody dto: UserAccountCreateDto): UserAccountResponseDto =
-        service.create(dto)
+    fun create(@Valid @RequestBody dto: UserAccountCreateDto): ResponseEntity<Unit> {
+        val response = service.create(dto)
+        return ResponseEntity.created(null).body(response).build()
+    }
 
-    @PutMapping("/{accountId}")
-    fun update(@PathVariable accountId: UUID, @Valid @RequestBody dto: UserAccountUpdateDto): UserAccountResponseDto =
+    @PutMapping("/balance/{accountId}")
+    fun updateBalance(@PathVariable accountId: UUID, @Valid @RequestBody dto: UserAccountUpdateDto): UserAccountResponseDto =
         service.updateBalance(accountId, dto)
+
+    @PatchMapping("/{accountId}")
+    fun update(@PathVariable accountId: UUID, @Valid @RequestBody dto: UserAccountUpdateDto): UserAccountResponseDto =
+        service.update(accountId, dto)
 
     @DeleteMapping("/{accountId}")
     fun delete(@PathVariable accountId: UUID): ResponseEntity<Unit> {

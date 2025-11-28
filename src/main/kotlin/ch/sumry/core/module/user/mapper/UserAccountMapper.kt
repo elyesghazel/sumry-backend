@@ -2,6 +2,7 @@ package ch.sumry.core.module.user.mapper
 
 import ch.sumry.core.module.user.dto.accounts.UserAccountCreateDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountResponseDto
+import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.model.UserAccount
 
 object UserAccountMapper {
@@ -13,10 +14,10 @@ object UserAccountMapper {
             currentBalance = entity.currentBalance
         )
 
-    fun fromDtoToEntity(dto: UserAccountCreateDto): UserAccount =
+    fun fromDtoToEntity(dto: UserAccountCreateDto, userEntity: User): UserAccount =
         UserAccount(
             accountName = dto.accountName,
             currentBalance = dto.currentBalance,
-            user = dto.user
+            user = userEntity
         )
 }

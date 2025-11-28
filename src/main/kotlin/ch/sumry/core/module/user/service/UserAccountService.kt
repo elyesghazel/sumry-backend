@@ -7,13 +7,14 @@ import ch.sumry.core.module.user.dto.accounts.UserAccountUpdateDto
 import ch.sumry.core.module.user.mapper.UserAccountMapper
 import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.module.user.repo.UserAccountRepository
+import ch.sumry.core.module.user.repo.UserRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import java.util.*
 
 
 @Service
-class UserAccountService(private val repo: UserAccountRepository) {
+class UserAccountService(private val repo: UserAccountRepository, private val userRepository: UserRepository) {
 
     fun getAll(): List<UserAccount> = repo.findAll()
 
@@ -28,18 +29,21 @@ class UserAccountService(private val repo: UserAccountRepository) {
     }
 
     fun create(account: UserAccountCreateDto): UserAccountResponseDto {
-        val entity = UserAccountMapper.fromDtoToEntity(account)
+        val entity = UserAccountMapper.fromDtoToEntity(account,
+            userRepository.findById(account.userId).orElseThrow
+            { RequestException(HttpStatus.NOT_FOUND,"User with ID ${account.userId} not found") }
+        )
         // check if exists
-        if (repo.existsByAccountName(entity.accountName)) {
+        if (repo.existsByAccountNameAndUserId(entity.accountName, entity.user?.id)) {
             throw RequestException(HttpStatus.CONFLICT,"UserAccount with name ${entity.accountName} already exists")
         }
         val savedEntity = repo.save(entity)
         return UserAccountMapper.toDto(savedEntity)
     }
 
-    fun update(dto: UserAccountUpdateDto): UserAccountResponseDto {
-        val entity = repo.findById(dto.accountID!!).orElseThrow {
-            RequestException(HttpStatus.NOT_FOUND,"UserAccount with ID ${dto.accountID} not found")
+    fun update(accountId: UUID, dto: UserAccountUpdateDto): UserAccountResponseDto {
+        val entity = repo.findById(accountId).orElseThrow {
+            RequestException(HttpStatus.NOT_FOUND,"UserAccount with ID $accountId not found")
         }
 
         entity.accountName = dto.accountName ?: entity.accountName
@@ -50,10 +54,10 @@ class UserAccountService(private val repo: UserAccountRepository) {
     }
     fun updateBalance(accountId: UUID, dto: UserAccountUpdateDto): UserAccountResponseDto {
         val entity = repo.findById(accountId).orElseThrow {
-            RequestException(HttpStatus.NOT_FOUND,"UserAccount with ID ${dto.accountID} not found")
+            RequestException(HttpStatus.NOT_FOUND,"UserAccount with ID $accountId not found")
         }
 
-        entity.currentBalance = dto.currentBalance
+        entity.currentBalance = dto.currentBalance ?: entity.currentBalance
 
         val updatedEntity = repo.save(entity)
         return UserAccountMapper.toDto(updatedEntity)
@@ -64,6 +68,6 @@ class UserAccountService(private val repo: UserAccountRepository) {
             RequestException(HttpStatus.NOT_FOUND,"UserAccount with ID $accountId not found")
         }
         repo.delete(entity)
-        return true;
+        return true
     }
 }
