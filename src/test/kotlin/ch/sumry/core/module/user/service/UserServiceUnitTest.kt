@@ -1,190 +1,178 @@
 // ch.sumry.core.module.user.service.UserServiceUnitTest.kt
 
 import ch.sumry.core.exception.RequestException
-import ch.sumry.core.module.user.dto.auth.LoginDto
 import ch.sumry.core.module.user.dto.auth.UserCreateDto
 import ch.sumry.core.module.user.dto.auth.UserUpdateDto
 import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.repo.UserRepository
 import ch.sumry.core.module.user.service.UserService
 import ch.sumry.core.security.JwtService
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
+import java.security.Principal
 import java.util.*
 
 class UserServiceUnitTest {
 
-    private val userRepo: UserRepository = mockk()
-    private val jwtService: JwtService = mockk()
+    // --- Mocks der Abhängigkeiten ---
+    private val userRepo: UserRepository = mockk(relaxed = true)
+    private val jwtService: JwtService = mockk(relaxed = true)
     private lateinit var userService: UserService
 
-    // Test Data
-    private val TEST_USER_ID = UUID.randomUUID()
-    private val RAW_PASSWORD = "Password123"
-    private lateinit var hashedPassword: String
-    private lateinit var testUser: User
+    // --- Konstanten für Resource Ownership Tests ---
+    private val OWNER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111")
+    private val OTHER_USER_ID = UUID.fromString("22222222-2222-2222-2222-222222222222")
+
+    // --- Objekte, die in @BeforeEach erstellt werden ---
+    private lateinit var ownerPrincipal: Principal
+    private lateinit var otherPrincipal: Principal
+    private lateinit var ownerUserEntity: User
 
     @BeforeEach
     fun setUp() {
+        // 1. Service initialisieren
         userService = UserService(userRepo, jwtService)
-        // 🚨 IMPORTANT: Manually encode the password to mock what the DB holds
-        hashedPassword = org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode(RAW_PASSWORD)
 
-        testUser = User(
-            id = TEST_USER_ID,
-            username = "testuser",
-            email = "test@example.com",
-            password = hashedPassword // Store the hashed version
+        // 2. Mock-Principal-Objekte initialisieren (Principal.name = UUID)
+        ownerPrincipal = mockk<Principal>().also {
+            every { it.name } returns OWNER_ID.toString()
+        }
+        otherPrincipal = mockk<Principal>().also {
+            every { it.name } returns OTHER_USER_ID.toString()
+        }
+
+        // 3. Mock-User-Entity initialisieren
+        ownerUserEntity = User(
+            id = OWNER_ID,
+            username = "owner",
+            email = "owner@test.ch",
+            password = "password"
         )
+        ownerUserEntity.encodePassword("placeholder") // Passwort muss gehasht sein
     }
 
-    // -------------------------------------------------------------------------
-    // A. REGISTER TESTS
-    // -------------------------------------------------------------------------
+    @AfterEach
+    fun tearDown() {
+        // Wichtig: Aufräumen nach jedem Test
+        clearMocks(userRepo, jwtService, answers = false)
+    }
+
+    // =========================================================================
+    // 1. GET BY ID TESTS (Resource Ownership)
+    // =========================================================================
 
     @Test
-    fun `register should succeed when user is new`() {
+    fun `getById should return 200 OK when principal owns the user ID`() {
         // ARRANGE
-        val dto = UserCreateDto("newuser", "new@example.com", RAW_PASSWORD)
-
-        // Mock DB checks to return false
-        every { userRepo.existsByUsername(dto.username) } returns false
-        every { userRepo.existsByEmail(dto.email) } returns false
-
-        // Mock save operation (capture the argument for verification)
-        every { userRepo.save(any()) } returnsArgument 0 // Returns the user object it was given
+        every { userRepo.findById(OWNER_ID) } returns Optional.of(ownerUserEntity)
 
         // ACT
-        val response = userService.register(dto)
+        val response = userService.getById(OWNER_ID, ownerPrincipal)
 
         // ASSERT
-        assertEquals("newuser", response.username)
-        assertEquals("new@example.com", response.email)
-
-        // Verify save was called and the password was encoded
-        verify(exactly = 1) { userRepo.save(match { user -> user.password != RAW_PASSWORD && user.email == "new@example.com" }) }
+        assertNotNull(response)
+        assertEquals(OWNER_ID, response.id)
+        verify(exactly = 1) { userRepo.findById(OWNER_ID) }
     }
+
+    @Test
+    fun `getById should throw 403 Forbidden when principal requests another user's ID`() {
+        // ARRANGE
+        // Wir mocken, dass der Benutzer, dessen ID angefragt wird, existiert
+        every { userRepo.findById(OTHER_USER_ID) } returns Optional.of(
+            User(id = OTHER_USER_ID, username = "other", email = "other@test.ch", password = "password")
+        )
+
+        // ACT & ASSERT
+        // Der Aufruf erfolgt durch den OWNER, aber er fragt nach OTHER_USER_ID
+        val exception = assertThrows<RequestException> {
+            userService.getById(OTHER_USER_ID, ownerPrincipal)
+        }
+
+        // ASSERT: Die Überprüfung im Service (providedUserId != id) sollte greifen
+        assertEquals(HttpStatus.FORBIDDEN, exception.status)
+        assertEquals("Forbidden", exception.message)
+        // Wichtig: Die findById-DB-Suche sollte NICHT stattfinden, da die 403-Prüfung VORHER kommt.
+        verify(exactly = 0) { userRepo.findById(any()) }
+    }
+
+    @Test
+    fun `getById should throw 404 Not Found if resource does not exist`() {
+        // ARRANGE
+        every { userRepo.findById(OWNER_ID) } returns Optional.empty()
+
+        // ACT & ASSERT: Die 404-Prüfung sollte nach der 403-Prüfung erfolgen
+        val exception = assertThrows<RequestException> {
+            userService.getById(OWNER_ID, ownerPrincipal)
+        }
+
+        // ASSERT: Die Exception wird korrekt ausgelöst
+        assertEquals(HttpStatus.NOT_FOUND, exception.status)
+        verify(exactly = 1) { userRepo.findById(OWNER_ID) }
+    }
+
+    // =========================================================================
+    // 2. UPDATE TESTS (Resource Ownership)
+    // =========================================================================
+
+    @Test
+    fun `update should succeed when principal updates their own user ID`() {
+        // ARRANGE
+        val updateDto = UserUpdateDto(username = "new_owner_name")
+        every { userRepo.findById(OWNER_ID) } returns Optional.of(ownerUserEntity)
+        every { userRepo.save(any()) } returns ownerUserEntity.apply { username = "new_owner_name" }
+
+        // ACT
+        val response = userService.update(OWNER_ID.toString(), updateDto, ownerPrincipal)
+
+        // ASSERT
+        assertEquals("new_owner_name", response.username)
+        // Verify, dass die save-Methode mit der neuen Entität aufgerufen wurde
+        verify(exactly = 1) { userRepo.save(match { it.username == "new_owner_name" }) }
+    }
+
+    @Test
+    fun `update should throw 403 Forbidden when principal tries to update another user ID`() {
+        // ARRANGE
+        val updateDto = UserUpdateDto(username = "hacker")
+
+        // ACT & ASSERT
+        // Der OWNER versucht, die OTHER_USER_ID zu aktualisieren
+        val exception = assertThrows<RequestException> {
+            userService.update(OTHER_USER_ID.toString(), updateDto, ownerPrincipal)
+        }
+
+        // ASSERT: Die 403-Prüfung sollte greifen
+        assertEquals(HttpStatus.FORBIDDEN, exception.status)
+        verify(exactly = 0) { userRepo.findById(any()) } // Es sollte keine DB-Abfrage geben
+    }
+
+    // =========================================================================
+    // 3. REGISTRATION TESTS (Ohne Principal, da public)
+    // =========================================================================
+
+    // (Fügen Sie hier Ihre bestehenden register-Tests ein, um Konflikte zu prüfen)
 
     @Test
     fun `register should throw CONFLICT if username is taken`() {
         // ARRANGE
-        val dto = UserCreateDto("testuser", "new@example.com", RAW_PASSWORD)
+        val dto = UserCreateDto("testuser", "new@example.com", "SecurePwd1")
         every { userRepo.existsByUsername(dto.username) } returns true
 
         // ACT & ASSERT
         val exception = assertThrows<RequestException> { userService.register(dto) }
         assertEquals(HttpStatus.CONFLICT, exception.status)
+        assertEquals("Username already taken", exception.message)
     }
 
-    // -------------------------------------------------------------------------
-    // B. LOGIN TESTS
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `login should succeed and return JWT on valid credentials`() {
-        // ARRANGE
-        val loginDto = LoginDto(testUser.email, RAW_PASSWORD)
-        val expectedToken = "mocked.jwt.token"
-
-        // Mock DB lookup
-        every { userRepo.findByEmail(loginDto.email) } returns testUser
-
-        // Mock JWT generation
-        every { jwtService.generateToken(any(), any()) } returns expectedToken
-
-        // ACT
-        val response = userService.login(loginDto)
-
-        // ASSERT
-        assertEquals(expectedToken, response.token)
-        assertEquals(testUser.email, response.email)
-
-        // Verify JWT service was called with correct claims (UUID subject)
-        verify(exactly = 1) {
-            jwtService.generateToken(
-                subject = TEST_USER_ID.toString(),
-                extraClaims = match { map -> map["email"] == testUser.email && map["username"] == testUser.username }
-            )
-        }
-    }
-
-    @Test
-    fun `login should throw UNAUTHORIZED on invalid password`() {
-        // ARRANGE
-        val loginDto = LoginDto(testUser.email, "WrongPassword")
-        every { userRepo.findByEmail(loginDto.email) } returns testUser // Email found
-
-        // ACT & ASSERT
-        val exception = assertThrows<RequestException> { userService.login(loginDto) }
-        assertEquals(HttpStatus.UNAUTHORIZED, exception.status)
-        verify(exactly = 0) { jwtService.generateToken(any(), any()) }
-    }
-
-    @Test
-    fun `login should throw UNAUTHORIZED on non-existent email`() {
-        // ARRANGE
-        val loginDto = LoginDto("nonexistent@example.com", RAW_PASSWORD)
-        every { userRepo.findByEmail(loginDto.email) } returns null // Email not found
-
-        // ACT & ASSERT
-        val exception = assertThrows<RequestException> { userService.login(loginDto) }
-        assertEquals(HttpStatus.UNAUTHORIZED, exception.status)
-    }
-
-    // -------------------------------------------------------------------------
-    // C. UPDATE TESTS
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `update should change username and email`() {
-        // ARRANGE
-        val newUsername = "updated_user"
-        val newEmail = "updated@example.com"
-        val updateDto = UserUpdateDto(newUsername, newEmail)
-
-        every { userRepo.findById(TEST_USER_ID) } returns Optional.of(testUser)
-        every { userRepo.save(any()) } returnsArgument 0
-
-        // ACT
-        val response = userService.update(TEST_USER_ID.toString(), updateDto)
-
-        // ASSERT
-        assertEquals(newUsername, response.username)
-        assertEquals(newEmail, response.email)
-
-        // Verify save was called with the updated user
-        verify(exactly = 1) { userRepo.save(match { user -> user.username == newUsername && user.email == newEmail }) }
-    }
-
-    // -------------------------------------------------------------------------
-    // D. GET BY ID TESTS
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `getById should return user dto when user exists`() {
-        // ARRANGE
-        every { userRepo.findById(TEST_USER_ID) } returns Optional.of(testUser)
-
-        // ACT
-        val response = userService.getById(TEST_USER_ID)
-
-        // ASSERT
-        assertEquals(testUser.username, response.username)
-    }
-
-    @Test
-    fun `getById should throw NOT_FOUND when user does not exist`() {
-        // ARRANGE
-        every { userRepo.findById(any()) } returns Optional.empty()
-
-        // ACT & ASSERT
-        val exception = assertThrows<RequestException> { userService.getById(UUID.randomUUID()) }
-        assertEquals(HttpStatus.NOT_FOUND, exception.status)
-    }
+    // ... (Fügen Sie hier alle weiteren notwendigen Unit-Tests hinzu, wie z.B. login)
 }

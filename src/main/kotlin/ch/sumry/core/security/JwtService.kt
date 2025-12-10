@@ -56,4 +56,15 @@ class JwtService(private val jwtProperties: JwtProperties) {
             .body
         return claims.subject
     }
+
+    fun extractAllClaims(token: String): Map<String, Any> {
+        val claims = Jwts.parserBuilder()
+            .setSigningKey(key()) // Use the key that signed the token
+            .build()
+            .parseClaimsJws(token) // Parses, validates the signature, and checks expiration
+            .body
+
+        // Convert the Claims object (a map-like structure) to a standard Kotlin Map
+        return claims.toMap()
+    }
 }

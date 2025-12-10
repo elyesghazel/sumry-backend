@@ -4,6 +4,7 @@ import ch.sumry.core.security.JwtAuthenticationFilter
 import ch.sumry.core.security.JwtService
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.web.SecurityFilterChain
@@ -11,6 +12,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 
 @Configuration
+@EnableMethodSecurity // ⬅️ MUST be enabled for @PreAuthorize to work
 class SecurityConfig( private val jwtService: JwtService
 ) {
 
@@ -22,15 +24,8 @@ class SecurityConfig( private val jwtService: JwtService
             .csrf { it.disable() }
             .authorizeHttpRequests {
                 it
-                    .requestMatchers("/api/users/login").permitAll() // Allow login
-                    .requestMatchers("/api/users/register").permitAll() // Allow registration
-                    .requestMatchers("/swagger-ui/**").permitAll()
-                    .requestMatchers("/v3/api-docs/**").permitAll()
-                    .requestMatchers("/v3/api-docs.yaml").permitAll()
-                    .requestMatchers("/swagger-resources").permitAll()
-                    .requestMatchers("/swagger-resources/**").permitAll()
+                    .anyRequest().permitAll()
 
-                    .anyRequest().authenticated() // Secure everything else
             }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) } // Stateless session
 

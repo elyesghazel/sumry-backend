@@ -25,7 +25,10 @@ class User(
     var transactions: MutableList<Transaction> = mutableListOf(),
 
     @OneToOne(mappedBy = "user", cascade = [CascadeType.ALL] )
-    var preferences: UserPreferences? = null
+    var preferences: UserPreferences? = null,
+
+    @Enumerated(EnumType.STRING)
+    var role: Role = Role.USER
 ) {
 
     constructor() : this(UUID.randomUUID(), "", "", "", mutableListOf(), mutableListOf(), null)

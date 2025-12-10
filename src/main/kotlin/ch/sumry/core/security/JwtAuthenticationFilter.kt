@@ -1,13 +1,14 @@
 package ch.sumry.core.security
 
+
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource
 import org.springframework.web.filter.OncePerRequestFilter
-
 
 class JwtAuthenticationFilter(
     private val jwtService: JwtService
@@ -20,43 +21,53 @@ class JwtAuthenticationFilter(
     ) {
         val authHeader = request.getHeader("Authorization")
 
-        // 1. Check for token
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response) // Continue chain
-            return // Exit early
+            filterChain.doFilter(request, response)
+            return
         }
 
-        val token = authHeader.substring(7) // "Bearer ".length
+        val token = authHeader.substring(7)
 
-        // 2. Check if user is already authenticated
         if (SecurityContextHolder.getContext().authentication != null) {
             filterChain.doFilter(request, response)
-            return // Exit early
+            return
         }
 
-        // 3. Validate token and set authentication
         try {
             if (jwtService.validateToken(token)) {
-                val mail = jwtService.getMailFromToken(token)
+                // 1. Extract Subject (UUID or Email, depending on your setup)
+                val userId = jwtService.getMailFromToken(token) // Assuming you use the UUID as the subject
 
-                // Using your minimal approach (works for .authenticated() but provides no roles)
+                // 2. Extract the role claim from the JWT payload
+                // Assuming jwtService has a method to get the claims map
+                val claims = jwtService.extractAllClaims(token)
+                val roleString = claims["role"] as String? // Assuming the key is "role"
+
+                // 3. Format roles into Spring Security Authorities
+                val authorities = if (roleString != null) {
+                    // Spring Security expects roles to start with "ROLE_"
+                    // e.g., "ADMIN" becomes "ROLE_ADMIN"
+                    listOf(SimpleGrantedAuthority("ROLE_$roleString"))
+                } else {
+                    // Default to a basic role if one isn't present
+                    listOf(SimpleGrantedAuthority("ROLE_USER"))
+                }
+
+                // 4. Create Authentication Token with Authorities
                 val authToken = UsernamePasswordAuthenticationToken(
-                    mail, // Principal
-                    null, // Credentials
-                    emptyList() // Authorities
+                    userId,      // Principal (User ID/Email)
+                    null,        // Credentials (set to null after token verification)
+                    authorities  // ⬅️ CRUCIAL: Pass the roles here
                 )
 
                 authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
                 SecurityContextHolder.getContext().authentication = authToken
             }
         } catch (e: Exception) {
-            // Token was invalid (expired, malformed, etc.)
-            // The SecurityContext remains null, so the user is not authenticated.
-            // You can log this error if needed.
-            println("Cannot set user authentication: ${e.message}")
+            // Log the error (optional)
+            System.err.println("JWT processing error: ${e.message}")
         }
 
-        // 4. Always continue the filter chain
         filterChain.doFilter(request, response)
     }
 }

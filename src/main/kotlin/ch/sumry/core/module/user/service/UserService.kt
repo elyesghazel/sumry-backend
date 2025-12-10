@@ -8,6 +8,7 @@ import ch.sumry.core.module.user.repo.UserRepository
 import ch.sumry.core.security.JwtService
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import java.security.Principal
 import java.util.*
 
 @Service
@@ -15,7 +16,13 @@ class UserService(private val repo: UserRepository, private val jwtService: JwtS
 
     fun getAll(): List<User> = repo.findAll()
 
-    fun getById(id: UUID): UserResponseDto {
+    fun getById(id: UUID, principal: Principal): UserResponseDto {
+
+        val providedUserId = UUID.fromString(principal.name)
+
+        if (providedUserId != id) {
+            throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
+        }
         val user = repo.findById(id).orElseThrow {
             RequestException(HttpStatus.NOT_FOUND, "User not found")
         }
@@ -40,7 +47,12 @@ class UserService(private val repo: UserRepository, private val jwtService: JwtS
         return UserMapper.toDto(user)
     }
 
-    fun update(userId: String, dto: UserUpdateDto): UserResponseDto {
+    fun update(userId: String, dto: UserUpdateDto, principal: Principal): UserResponseDto {
+        val providedUserId = principal.name
+
+        if (providedUserId != userId) {
+            throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
+        }
         val user = repo.findById(UUID.fromString(userId)).orElseThrow {
             RequestException(HttpStatus.NOT_FOUND, "User not found")
         }
@@ -64,7 +76,7 @@ class UserService(private val repo: UserRepository, private val jwtService: JwtS
 
         val token = jwtService.generateToken(
             subject = user.id.toString(),
-            extraClaims = mapOf("email" to user.email, "username" to user.username)
+            extraClaims = mapOf("email" to user.email, "username" to user.username, "role" to user.role.name)
         )
 
         return LoginResponseDto(

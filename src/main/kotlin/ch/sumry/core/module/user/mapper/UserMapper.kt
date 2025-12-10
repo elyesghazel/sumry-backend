@@ -2,6 +2,7 @@ package ch.sumry.core.module.user.mapper
 
 import ch.sumry.core.module.user.dto.auth.UserCreateDto
 import ch.sumry.core.module.user.dto.auth.UserResponseDto
+import ch.sumry.core.module.user.model.Role
 import ch.sumry.core.module.user.model.User
 
 object UserMapper {
@@ -17,6 +18,7 @@ object UserMapper {
         User(
             username = dto.username!!,
             email = dto.email!!,
-            password = dto.password
+            password = dto.password,
+            role = Role.USER
         )
 }
