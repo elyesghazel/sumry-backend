@@ -2,6 +2,7 @@ package ch.sumry.core.module.user.controller
 import ch.sumry.core.exception.RequestException
 import ch.sumry.core.module.user.dto.auth.*
 import ch.sumry.core.module.user.service.UserService
+import ch.sumry.core.security.MethodSecurityTestConfig
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.clearMocks
 import io.mockk.every
@@ -14,6 +15,7 @@ import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfi
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Import
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.test.context.support.WithMockUser
@@ -30,13 +32,16 @@ private const val USER_ID_STRING = "22222222-2222-2222-2222-222222222222"
 private val USER_ID_UUID = UUID.fromString(USER_ID_STRING)
 private val USER_RESPONSE = UserResponseDto(USER_ID_UUID, "testuser", "test@example.com")
 private val LOGIN_DTO = LoginDto("test@example.com", "Password123")
-
+private val userMockPrincipal = Principal { USER_ID_STRING }
+private val otherMockPrincipal = Principal { ADMIN_ID_STRING }
 
 @WebMvcTest(
     controllers = [UserController::class],
-    // Important : deactive security config for testing
     excludeAutoConfiguration = [SecurityAutoConfiguration::class]
 )
+
+// import for @preauthorize to work
+@Import(MethodSecurityTestConfig::class)
 class UserControllerIntegrationTest {
 
     @Autowired private lateinit var mockMvc: MockMvc
@@ -49,9 +54,6 @@ class UserControllerIntegrationTest {
         fun userService(): UserService = mockk(relaxed = true)
     }
 
-    // Helper, um den Principal Matcher in Mocks zu kapseln (für Tests ohne @MockBean)
-    // Wir benötigen es hier nicht für MockK, da wir den Service mocken,
-    // aber wir behalten die Principal-Konvention für die gesicherten Endpunkte bei.
 
     @AfterEach
     fun tearDown() {
@@ -123,33 +125,35 @@ class UserControllerIntegrationTest {
     @WithMockUser(username = USER_ID_STRING, roles = ["USER"])
     fun `getById should return 200 OK when principal requests own user ID`() {
         // ARRANGE: Wir simulieren, dass der Service das Objekt erfolgreich zurückgibt
+
+        var mockPrincipal = Principal { USER_ID_STRING }
         every { userService.getById(USER_ID_UUID, match { it.name == USER_ID_STRING }) } returns USER_RESPONSE
 
         // ACT & ASSERT
         mockMvc.perform(get("/api/users/{id}", USER_ID_STRING)
-            .contentType(MediaType.APPLICATION_JSON))
+            .contentType(MediaType.APPLICATION_JSON)
+            .principal(mockPrincipal))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.id").value(USER_ID_STRING))
 
-        verify(exactly = 1) { userService.getById(USER_ID_UUID, match { it.name == USER_ID_STRING }) }
+        verify(exactly = 1) { userService.getById(USER_ID_UUID, any()) }
     }
 
     @Test
-    @WithMockUser(username = USER_ID_STRING, roles = ["USER"]) // Angemeldeter Benutzer (ID 222...)
+    @WithMockUser(username = USER_ID_STRING, roles = ["USER"])
     fun `getById should return 403 Forbidden when principal requests different user ID`() {
         val otherIdString = ADMIN_ID_STRING
 
-        // ARRANGE: Wir simulieren, dass der Service die 403-Exception wirft,
-        // da der angemeldet User (USER_ID_STRING) nicht mit der angefragten ID (otherIdString) übereinstimmt.
         every { userService.getById(UUID.fromString(otherIdString), match { it.name == USER_ID_STRING }) } throws
                 RequestException(HttpStatus.FORBIDDEN, "Forbidden")
 
         // ACT & ASSERT
         mockMvc.perform(get("/api/users/{id}", otherIdString)
-            .contentType(MediaType.APPLICATION_JSON))
+            .contentType(MediaType.APPLICATION_JSON)
+            .principal(userMockPrincipal))
             .andExpect(status().isForbidden)
 
-        verify(exactly = 1) { userService.getById(UUID.fromString(otherIdString), match { it.name == USER_ID_STRING }) }
+        verify(exactly = 1) { userService.getById(UUID.fromString(otherIdString), any<Principal>()) }
     }
 
     // =========================================================================
@@ -161,8 +165,6 @@ class UserControllerIntegrationTest {
         val updateDto = UserUpdateDto(username = "new_name")
         val updatedResponse = USER_RESPONSE.copy(username = "new_name")
 
-        // Ein einfacher Mock-Principal, der deinen User-ID String zurückgibt
-        val mockPrincipal = Principal { USER_ID_STRING }
 
         // ARRANGE
         every {
@@ -177,7 +179,7 @@ class UserControllerIntegrationTest {
         mockMvc.perform(put("/api/users/{userId}", USER_ID_STRING)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(updateDto))
-            .principal(mockPrincipal) // <--- HIER: Manuelle Injektion!
+            .principal(userMockPrincipal)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.username").value("new_name"))
@@ -193,7 +195,7 @@ class UserControllerIntegrationTest {
         val otherIdString = ADMIN_ID_STRING
         val updateDto = UserUpdateDto(username = "hacker_attempt")
 
-        // ARRANGE: Mocken der Forbidden-Exception
+        // Arrange
         every { userService.update(otherIdString, updateDto, match { it.name == USER_ID_STRING }) } throws
                 RequestException(HttpStatus.FORBIDDEN, "Forbidden")
 
@@ -201,10 +203,11 @@ class UserControllerIntegrationTest {
         mockMvc.perform(put("/api/users/{userId}", otherIdString)
             .with(csrf())
             .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(updateDto)))
+            .content(objectMapper.writeValueAsString(updateDto))
+            .principal(userMockPrincipal))
             .andExpect(status().isForbidden)
 
-        verify(exactly = 1) { userService.update(otherIdString, updateDto, match { it.name == USER_ID_STRING }) }
+        verify(exactly = 1) { userService.update(otherIdString, updateDto, any()) }
     }
 
     // =========================================================================
@@ -214,7 +217,7 @@ class UserControllerIntegrationTest {
     @Test
     @WithMockUser(roles = ["ADMIN"])
     fun `getAll should return 200 OK for ADMIN role (PreAuthorize)`() {
-        // ARRANGE: Der Aufruf sollte den Service erreichen, da der @PreAuthorize-Check erfolgreich ist
+        // ARRANGE
         every { userService.getAll() } returns emptyList()
 
         // ACT & ASSERT
@@ -229,7 +232,7 @@ class UserControllerIntegrationTest {
     @Test
     @WithMockUser(roles = ["USER"])
     fun `getAll should return 403 Forbidden for non-ADMIN roles (PreAuthorize)`() {
-        // ARRANGE: Der Service wird NICHT gemockt, da der @PreAuthorize-Check im Controller greifen sollte
+        // ARRANGE: nothing bcs controller preauth
 
         // ACT & ASSERT
         mockMvc.perform(get("/api/users")

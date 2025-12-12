@@ -6,9 +6,11 @@ import ch.sumry.core.module.user.dto.accounts.UserAccountResponseDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountUpdateDto
 import ch.sumry.core.module.user.service.UserAccountService
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
@@ -32,19 +34,21 @@ private const val MALICIOUS_USER_ID_STRING = "99999999-8888-7777-6666-5555555555
 @WebMvcTest(UserAccountController::class)
 class UserAccountControllerIntegrationTest {
 
-    @Autowired
-    private lateinit var mockMvc: MockMvc
+    @Autowired private lateinit var mockMvc: MockMvc
 
-    @Autowired
-    private lateinit var objectMapper: ObjectMapper
+    @Autowired private lateinit var objectMapper: ObjectMapper
 
-    @Autowired
-    private lateinit var userAccountService: UserAccountService
+    @Autowired private lateinit var userAccountService: UserAccountService
 
     @TestConfiguration
     class ControllerTestConfig {
         @Bean
         fun userAccountService(): UserAccountService = mockk(relaxed = true)
+    }
+
+    @AfterEach
+    fun tearDown() {
+        clearMocks(userAccountService)
     }
 
     // =========================================================================================
@@ -103,8 +107,8 @@ class UserAccountControllerIntegrationTest {
 
         verify(exactly = 1) {
             userAccountService.create(
-            accountCreateDto,
-            match { it.name == OWNER_USER_ID_STRING }
+                accountCreateDto,
+                match { it.name == OWNER_USER_ID_STRING }
             )
         }
     }
@@ -150,7 +154,7 @@ class UserAccountControllerIntegrationTest {
         every {
             userAccountService.delete(
                 accountId,
-            match { it.name == OWNER_USER_ID_STRING }
+                match { it.name == OWNER_USER_ID_STRING }
             )
         } returns true
 
@@ -165,7 +169,8 @@ class UserAccountControllerIntegrationTest {
             userAccountService.delete(
                 accountId,
                 match { it.name == OWNER_USER_ID_STRING }
-        ) }
+            )
+        }
     }
 
     // =========================================================================================

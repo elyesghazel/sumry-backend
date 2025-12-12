@@ -8,7 +8,9 @@ import ch.sumry.core.module.user.mapper.UserAccountMapper
 import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
+import jakarta.transaction.Transactional
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Service
 import java.security.Principal
 import java.util.*
@@ -17,6 +19,7 @@ import java.util.*
 @Service
 class UserAccountService(private val repo: UserAccountRepository, private val userRepository: UserRepository) {
 
+    @PreAuthorize("hasRole('ADMIN')")
     fun getAll(): List<UserAccount> = repo.findAll()
 
     fun getAllFromUser(userId: UUID, principal: Principal): List<UserAccount> {
@@ -44,17 +47,30 @@ class UserAccountService(private val repo: UserAccountRepository, private val us
         return UserAccountMapper.toDto(entity)
     }
 
+    @Transactional
     fun create(account: UserAccountCreateDto, principal: Principal): UserAccountResponseDto {
         val userId: UUID = UUID.fromString(principal.name)
-        val entity = UserAccountMapper.fromDtoToEntity(account,
-            userRepository.findById(userId).orElseThrow
-            { RequestException(HttpStatus.NOT_FOUND,"User with ID $userId not found") }
-        )
-        // check if exists
-        if (repo.existsByAccountNameAndUserId(entity.accountName, entity.user?.id)) {
-            throw RequestException(HttpStatus.CONFLICT,"UserAccount with name ${entity.accountName} already exists")
+
+        // 🚨 FIX 1: Use getReferenceById to create a proxy reference.
+        // This avoids unnecessary loading of the full User data and prevents the StaleObjectStateException.
+        val userReference = userRepository.getReferenceById(userId)
+
+        // FIX 2: Check for existence explicitly, as getReferenceById doesn't throw if the user doesn't exist
+        // until the proxy is accessed later.
+        if (!userRepository.existsById(userId)) {
+            throw RequestException(HttpStatus.NOT_FOUND, "User with ID $userId not found")
         }
+
+
+        // check if exists
+        if (repo.existsByAccountNameAndUserId(account.accountName, userReference.id)) {
+            throw RequestException(HttpStatus.CONFLICT,"UserAccount with name ${account.accountName} already exists")
+        }
+
+        val entity = UserAccountMapper.fromDtoToEntity(account, userReference) // Pass the proxy reference
+
         val savedEntity = repo.save(entity)
+        // The rest of the saving process should now be clean, as only the new UserAccount is persisted.
         return UserAccountMapper.toDto(savedEntity)
     }
 

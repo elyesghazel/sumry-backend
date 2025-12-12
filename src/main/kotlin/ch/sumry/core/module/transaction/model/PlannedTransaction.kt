@@ -1,5 +1,6 @@
 package ch.sumry.core.module.transaction.model
 
+import ch.sumry.core.module.category.model.Category
 import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.model.UserAccount
 import jakarta.persistence.*
@@ -21,6 +22,11 @@ class PlannedTransaction(
 
     @Enumerated(EnumType.STRING)
     var frequency: Frequency? = null, // e.g. DAILY, WEEKLY, MONTHLY, YEARLY
+
+    @ManyToOne
+    @JoinColumn(name = "category_id")
+    var category: Category? = null,
+
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_account_id")

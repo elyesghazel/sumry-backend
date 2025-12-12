@@ -18,9 +18,12 @@ class UserAccount (
     @ManyToOne(fetch = FetchType.LAZY)
     val user: User? = null,
 
+    @Version // Ensures Hibernate tracks concurrent changes
+    var version: Long? = null
+
 ) {
     constructor(accountName: String, currentBalance: Double, user: User) : this(
-        UUID.randomUUID(),
+        null,
         accountName,
         currentBalance,
         user

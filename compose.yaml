@@ -2,7 +2,7 @@ services:
   postgres:
     image: 'postgres:latest'
     environment:
-      - 'POSTGRES_DB=sumry-test'
+      - 'POSTGRES_DB=sumry-dev'
       - 'POSTGRES_PASSWORD=123'
       - 'POSTGRES_USER=user'
     ports:

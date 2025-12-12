@@ -1,6 +1,6 @@
 package ch.sumry.core.module.user.model
 
-import ch.sumry.core.module.transaction.model.Transaction
+import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.*
 import java.util.*
 
@@ -18,11 +18,9 @@ class User(
     @Column(nullable = false)
     var password: String,
 
+    @JsonIgnore
     @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
     val accounts: MutableList<UserAccount> = mutableListOf(),
-
-    @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var transactions: MutableList<Transaction> = mutableListOf(),
 
     @OneToOne(mappedBy = "user", cascade = [CascadeType.ALL] )
     var preferences: UserPreferences? = null,
@@ -31,7 +29,7 @@ class User(
     var role: Role = Role.USER
 ) {
 
-    constructor() : this(UUID.randomUUID(), "", "", "", mutableListOf(), mutableListOf(), null)
+    constructor() : this(UUID.randomUUID(), "", "", "", mutableListOf(), null)
     fun encodePassword(rawPassword: String) {
         val encoder = org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()
         this.password = encoder.encode(rawPassword)
