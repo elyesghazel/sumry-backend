@@ -31,7 +31,7 @@ class Transaction (
 
 ) {
     constructor(amount: Double, description: String?, category: Category, date: Date, userAccount: UserAccount) : this(
-        UUID.randomUUID(),
+        null,
         amount,
     description,
             category,

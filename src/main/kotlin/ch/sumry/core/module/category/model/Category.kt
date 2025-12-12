@@ -13,14 +13,16 @@ class Category (
     val id: UUID? = null,
 
     var label: String? = null,
-    val color: String? = null,
-    val icon: String? = null,
+    var color: String? = null,
+    var icon: String? = null,
 
     @Enumerated(EnumType.STRING)
-    val categoryType: CategoryType? = null,
+    var categoryType: CategoryType? = null,
 
     @ManyToOne
     @JoinColumn(name = "user_id")
     val user: User? = null,
 
-)
+    var isActive: Boolean? = true
+
+    )

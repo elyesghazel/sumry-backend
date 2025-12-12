@@ -52,10 +52,9 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(NoSuchElementException::class)
     fun handleNoSuchElementException(ex: NoSuchElementException): ResponseEntity<Any> {
-        // You can return a custom error body here, but for simplicity, we return a standard 404
         val errorBody = mapOf("error" to "Not Found", "message" to ex.message)
         return ResponseEntity
-            .status(HttpStatus.NOT_FOUND) // Sets the 404 status code
+            .status(HttpStatus.NOT_FOUND) // 404 not found
             .body(errorBody)
     }
 
@@ -78,6 +77,13 @@ class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(mapOf("error" to "Bad Request", "message" to (ex.message ?: "Invalid Argument")))
+    }
+
+    @ExceptionHandler(NullPointerException::class)
+    fun handleNullPointerException(ex: NullPointerException): ResponseEntity<Map<String, String>> {
+        return ResponseEntity
+            .status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(mapOf("error" to "Internal Server Error", "message" to (ex.message ?: "A null value was encountered where it is not allowed")))
     }
 
 }

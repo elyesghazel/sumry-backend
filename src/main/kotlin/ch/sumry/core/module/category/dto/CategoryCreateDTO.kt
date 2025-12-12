@@ -1,4 +1,4 @@
-package ch.sumry.core.module.category.model.dto
+package ch.sumry.core.module.category.dto
 
 import ch.sumry.core.types.CategoryType
 import jakarta.validation.constraints.NotBlank
