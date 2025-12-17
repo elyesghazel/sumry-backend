@@ -13,10 +13,12 @@ object TransactionMapper {
             id = entity.id,
             amount = entity.amount,
             description = entity.description,
-            categoryId = entity.category.id!!, // Assuming Category ID is guaranteed to exist
+            categoryId = entity.category?.id!!, // Assuming category always exists for a transaction
             date = entity.date,
             userAccountId = entity.userAccount?.id, // Accessing UUID
-            user = entity.userAccount?.user // Safe access
+            userId = entity.userAccount?.user?.id,
+            balanceBefore = entity.balanceBefore,
+            balanceAfter = entity.balanceAfter,
         )
 
     fun toDtoList(entities: List<Transaction>): List<TransactionResponseDTO> =

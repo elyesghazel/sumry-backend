@@ -16,25 +16,36 @@ class Transaction (
     var amount: Double? = null,
     var description: String? = null,
 
+    var balanceBefore: Double? = null,
+    var balanceAfter: Double? = null,
+
+    // 🚨 FIX: Mache es nullable und setze den Default auf null
     @ManyToOne
     @JoinColumn(name = "category_id")
-    var category: Category,
+    var category: Category? = null,
 
 
-    val date: Date = Date(),
+    val date: Date? = Date(), // Ändere dies sicherheitshalber auch auf Date? = Date()
 
     @ManyToOne(fetch = FetchType.LAZY)
     var userAccount: UserAccount? = null,
 
-
-
-
-) {
-    constructor(amount: Double, description: String?, category: Category, date: Date, userAccount: UserAccount) : this(
+    ) {
+    constructor(
+        amount: Double,
+        description: String?,
+        balanceBefore: Double?,
+        balanceAfter: Double?,
+        category: Category,
+        date: Date,
+        userAccount: UserAccount
+    ) : this(
         null,
         amount,
-    description,
-            category,
+        description,
+        balanceBefore,
+        balanceAfter,
+        category,
         date,
         userAccount
     )

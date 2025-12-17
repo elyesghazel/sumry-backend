@@ -33,6 +33,10 @@ class UserAccountService(private val repo: UserAccountRepository, private val us
         return repo.findByUserId(userId)
 
     }
+    fun getAllFromPrincipal(principal: Principal): List<UserAccountResponseDto> {
+        val userId = UUID.fromString(principal.name)
+        return UserAccountMapper.toDtoList(repo.findByUserId(userId))
+    }
 
     fun findById(accountId: UUID, principal: Principal): UserAccountResponseDto {
         val entity = repo.findById(accountId).orElseThrow {

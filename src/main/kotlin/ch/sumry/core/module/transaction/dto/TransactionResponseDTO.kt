@@ -1,6 +1,5 @@
 package ch.sumry.core.module.transaction.dto
 
-import ch.sumry.core.module.user.model.User
 import java.util.*
 
 data class TransactionResponseDTO(
@@ -12,5 +11,8 @@ data class TransactionResponseDTO(
 
     val date: Date?,
     val userAccountId: UUID?,
-    val user: User?
+    val userId: UUID?,
+
+    val balanceBefore: Double?,
+    val balanceAfter: Double?
 )

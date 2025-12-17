@@ -20,4 +20,7 @@ object UserAccountMapper {
             currentBalance = dto.currentBalance,
             user = userEntity
         )
+
+    fun toDtoList(entities: List<UserAccount>): List<UserAccountResponseDto> =
+        entities.map { toDto(it) }
 }

@@ -8,6 +8,7 @@ import ch.sumry.core.module.transaction.mapper.TransactionMapper
 import ch.sumry.core.module.transaction.repo.TransactionRepository
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
+import ch.sumry.core.types.CategoryType
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -28,6 +29,13 @@ class TransactionService(
         if (providedUserId != userId) {
             throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
         }
+
+        val transactions = transactionRepository.findByUserAccount_User_Id(userId)
+
+        return TransactionMapper.toDtoList(transactions)
+    }
+
+    fun getByUserIdAdmin(userId: UUID, principal: Principal): List<TransactionResponseDTO> {
 
         val transactions = transactionRepository.findByUserAccount_User_Id(userId)
 
@@ -65,13 +73,56 @@ class TransactionService(
         val currentBalance = userAccountEntity.currentBalance ?: 0.0
         val transactionAmount = transaction.amount ?: 0.0
 
-        userAccountEntity.currentBalance = currentBalance.plus(transactionAmount)
+        val newBalance = if (categoryEntity.categoryType == CategoryType.INCOME) {
+            currentBalance + transactionAmount
+        } else {
+            currentBalance - transactionAmount
+        }
 
-        userAccountRepository.save(userAccountEntity) // Update account first (within the transaction)
+        transaction.balanceBefore = currentBalance
+        transaction.balanceAfter = newBalance
 
-        // 5. Save the Transaction
+        // D. Den Account aktualisieren (mit dem berechneten newBalance!)
+        userAccountEntity.currentBalance = newBalance
+
+        // 5. Speichern
+        userAccountRepository.save(userAccountEntity)
         transactionRepository.save(transaction)
-        // 6. Return DTO
+
         return TransactionMapper.toDto(transaction)
+    }
+
+    @Transactional
+    fun delete(id: UUID, principal: Principal) {
+        val userId = UUID.fromString(principal.name)
+
+        // 1. load
+        val transaction = transactionRepository.findById(id).orElseThrow {
+            RequestException(HttpStatus.NOT_FOUND, "Transaction not found")
+        }
+
+        // 2. principal ownership
+        if (transaction.userAccount?.user?.id != userId) {
+            throw RequestException(HttpStatus.FORBIDDEN, "Access denied")
+        }
+
+        val account = transaction.userAccount!!
+        val amount = transaction.amount ?: 0.0
+        val type = transaction.category?.categoryType ?: CategoryType.EXPENSE
+
+        // check type
+        val currentBalance = account.currentBalance ?: 0.0
+
+        val newBalance = if (type == CategoryType.INCOME) {
+            currentBalance - amount
+        } else {
+            currentBalance + amount
+        }
+
+        account.currentBalance = newBalance
+
+        // 4. save & delete
+        userAccountRepository.save(account) // update account balance
+        transactionRepository.delete(transaction) // delete transac
     }
 }

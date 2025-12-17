@@ -8,6 +8,7 @@ import ch.sumry.core.module.user.service.UserAccountService
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import java.security.Principal
 import java.util.*
@@ -18,13 +19,17 @@ import java.util.*
 class UserAccountController(private val service: UserAccountService) {
 
     @Tag(name = "User Accounts", description = "Banking Accounts like cash, card, savings")
-    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/all")
     fun getAll(): List<UserAccount> = service.getAll()
+
 
     @Tag(name = "Users", description = "Get all banking accounts from specific User")
     @GetMapping("/user/{userId}")
     fun getFromUser(@PathVariable userId: UUID, principal: Principal): List<UserAccount> = service.getAllFromUser(userId, principal)
 
+    @GetMapping("/")
+    fun getFromPrincipal(principal: Principal): List<UserAccountResponseDto> = service.getAllFromPrincipal(principal)
     @Tag(name = "User Accounts", description = "Get specific banking account by ID")
     @GetMapping("/id/{accountId}")
     fun getById(@PathVariable accountId: UUID, principal: Principal): UserAccountResponseDto =
@@ -40,7 +45,7 @@ class UserAccountController(private val service: UserAccountService) {
     fun updateBalance(@PathVariable accountId: UUID, @Valid @RequestBody dto: UserAccountUpdateDto, principal: Principal): UserAccountResponseDto =
         service.updateBalance(accountId, dto, principal)
 
-    @PatchMapping("/{accountId}")
+    @PutMapping("/{accountId}")
     fun update(@PathVariable accountId: UUID, @Valid @RequestBody dto: UserAccountUpdateDto, principal: Principal): UserAccountResponseDto =
         service.update(accountId, dto, principal)
 
