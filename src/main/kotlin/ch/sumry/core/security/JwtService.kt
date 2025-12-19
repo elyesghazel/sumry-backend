@@ -15,6 +15,7 @@ class JwtService(private val jwtProperties: JwtProperties) {
         val now = Date()
         val expiryDate = Date(now.time + jwtProperties.expirationMs)
 
+
         return Jwts.builder()
             .setClaims(extraClaims)
             .setSubject(subject)

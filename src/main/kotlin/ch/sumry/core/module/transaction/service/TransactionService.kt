@@ -58,7 +58,7 @@ class TransactionService(
         }
 
         // 2. Load Category Entity
-        val categoryEntity = categoryRepository.findCategoryByLabel(dto.categoryLabel).orElseThrow {
+        val categoryEntity = categoryRepository.findByLabelAndUser_Id(dto.categoryLabel, authenticatedUserId).orElseThrow {
             RequestException(HttpStatus.NOT_FOUND, "Category not found")
         }
 
