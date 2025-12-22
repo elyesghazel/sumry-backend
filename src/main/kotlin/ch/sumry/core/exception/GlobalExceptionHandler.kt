@@ -6,8 +6,10 @@ import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.security.authorization.AuthorizationDeniedException
 import org.springframework.web.bind.MethodArgumentNotValidException
+import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import java.time.DateTimeException
 import kotlin.reflect.KClass
 
 @RestControllerAdvice
@@ -84,6 +86,30 @@ class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(mapOf("error" to "Internal Server Error", "message" to (ex.message ?: "A null value was encountered where it is not allowed")))
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException::class)
+    fun handleMissingServletRequestParameterException(ex: MissingServletRequestParameterException): ResponseEntity<Map<String, String>> {
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST).body(
+                mapOf(
+                    "error" to "Bad Request",
+                    "message" to "Missing required parameter: ${ex.parameterName}"
+                )
+            )
+
+    }
+
+    @ExceptionHandler(DateTimeException::class)
+    fun handleDateTimeException(ex: DateTimeException): ResponseEntity<Map<String, String>> {
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST).body(
+                mapOf(
+                    "error" to "Bad Request",
+                    "message" to (ex.message ?: "Invalid date or time value")
+                )
+            )
+
     }
 
 }

@@ -10,4 +10,6 @@ interface CategoryRepository: JpaRepository<Category, UUID> {
     fun existsByLabelAndUser_Id(label: String, userId: UUID): Boolean
 
     fun findByLabelAndUser_Id(label: String, userId: UUID): Optional<Category>
+
+    fun findByLabelAndUser_IdAndIsActiveTrue(label: String, userId: UUID): Optional<Category>
 }

@@ -25,7 +25,7 @@ class Transaction (
     var category: Category? = null,
 
 
-    val date: Date? = Date(), // Ändere dies sicherheitshalber auch auf Date? = Date()
+    var date: Date? = Date(), // Ändere dies sicherheitshalber auch auf Date? = Date()
 
     @ManyToOne(fetch = FetchType.LAZY)
     var userAccount: UserAccount? = null,

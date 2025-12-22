@@ -4,6 +4,7 @@ import ch.sumry.core.exception.RequestException
 import ch.sumry.core.module.category.repo.CategoryRepository
 import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
 import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
+import ch.sumry.core.module.transaction.dto.TransactionUpdateDTO
 import ch.sumry.core.module.transaction.mapper.TransactionMapper
 import ch.sumry.core.module.transaction.repo.TransactionRepository
 import ch.sumry.core.module.user.repo.UserAccountRepository
@@ -125,4 +126,94 @@ class TransactionService(
         userAccountRepository.save(account) // update account balance
         transactionRepository.delete(transaction) // delete transac
     }
+
+    @Transactional
+    fun update(id: UUID, dto: TransactionUpdateDTO, principal: Principal): TransactionResponseDTO {
+        val userId = UUID.fromString(principal.name)
+
+        // 1. Load the existing transaction
+        val transaction = transactionRepository.findById(id).orElseThrow {
+            RequestException(HttpStatus.NOT_FOUND, "Transaction not found")
+        }
+
+        // 2. Security Check (Ownership of the CURRENT transaction)
+        if (transaction.userAccount?.user?.id != userId) {
+            throw RequestException(HttpStatus.FORBIDDEN, "Access denied")
+        }
+
+        // load new useraccount
+        val targetAccountId: UUID? = if (dto.userAccountId != null) UUID.fromString(dto.userAccountId) else transaction.userAccount!!.id
+
+        val targetAccount = userAccountRepository.findById(targetAccountId!!).orElseThrow {
+            throw RequestException(HttpStatus.NOT_FOUND, "UserAccount not found")
+        }
+
+        // principal ownership
+        if (targetAccount.user?.id != userId) {
+            throw RequestException(HttpStatus.FORBIDDEN, "Access denied to target account")
+        }
+
+        // revert old transaction / effect
+        val oldAccount = transaction.userAccount!!
+        val oldAmount = transaction.amount ?: 0.0
+        val oldType = transaction.category?.categoryType ?: CategoryType.EXPENSE
+
+        // if expense take away, if income add back
+        val revertedBalance = if (oldType == CategoryType.INCOME) {
+            (oldAccount.currentBalance ?: 0.0) - oldAmount
+        } else {
+            (oldAccount.currentBalance ?: 0.0) + oldAmount
+        }
+
+        oldAccount.currentBalance = revertedBalance
+        userAccountRepository.save(oldAccount) // Save the "clean" state of the old account
+
+        // update
+
+        // Update simple fields
+        if (dto.description != null) transaction.description = dto.description
+        if (dto.date != null) transaction.date = dto.date
+        if (dto.amount != null) transaction.amount = dto.amount
+
+        // Update Category (if changed)
+        if (dto.categoryLabel != null) {
+            val newCategory = categoryRepository.findByLabelAndUser_IdAndIsActiveTrue(dto.categoryLabel, userId)
+                .orElseThrow { RequestException(HttpStatus.NOT_FOUND, "Category '${dto.categoryLabel}' not found") }
+            transaction.category = newCategory
+        }
+
+        // Update Account link
+        transaction.userAccount = targetAccount
+
+        // apply new effect
+
+        // If oldAccount == targetAccount, use revertedBalance
+        val balanceBase = if (oldAccount.id == targetAccount.id) revertedBalance else (targetAccount.currentBalance ?: 0.0)
+
+        val newAmount = transaction.amount ?: 0.0
+        val newType = transaction.category?.categoryType ?: CategoryType.EXPENSE
+
+        val finalBalance = if (newType == CategoryType.INCOME) {
+            balanceBase + newAmount
+        } else {
+            balanceBase - newAmount
+        }
+
+        // Update the Target Account
+        targetAccount.currentBalance = finalBalance
+
+        // Update audit snapshots for the Transaction
+        transaction.balanceBefore = balanceBase
+        transaction.balanceAfter = finalBalance
+
+        // ==================================================================================
+        // STEP D: Save
+        // ==================================================================================
+        userAccountRepository.save(targetAccount) // Save the new balance
+        val savedTransaction = transactionRepository.save(transaction)
+
+        return TransactionMapper.toDto(savedTransaction)
+    }
+
+
 }
