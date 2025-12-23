@@ -8,7 +8,11 @@ import java.util.*
 interface TransactionRepository: JpaRepository<Transaction, UUID> {
 
     fun findByUserAccount_User_Id(userId: UUID): List<Transaction>
-
+    fun findByUserAccount_IdAndDateBetween(
+        accountId: UUID,
+        startDate: Date,
+        endDate: Date
+    ): List<Transaction>
     @Query("""
     SELECT SUM(t.amount) 
     FROM Transaction t 

@@ -2,6 +2,7 @@ package ch.sumry.core.module.transaction.service
 
 import ch.sumry.core.exception.RequestException
 import ch.sumry.core.module.category.repo.CategoryRepository
+import ch.sumry.core.module.transaction.dto.CashflowDTO
 import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
 import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
 import ch.sumry.core.module.transaction.dto.TransactionUpdateDTO
@@ -14,6 +15,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.security.Principal
+import java.time.YearMonth
+import java.time.ZoneId
 import java.util.*
 
 @Service
@@ -213,6 +216,42 @@ class TransactionService(
         val savedTransaction = transactionRepository.save(transaction)
 
         return TransactionMapper.toDto(savedTransaction)
+    }
+
+
+    fun getIncomeAndExpenseMonth(userAccountIdStr: String, principal: Principal): CashflowDTO {
+        val userId = UUID.fromString(principal.name)
+        val accountId = UUID.fromString(userAccountIdStr)
+
+        val account = userAccountRepository.findById(accountId)
+            .orElseThrow { RequestException(HttpStatus.NOT_FOUND, "Account not found") }
+
+        if (account.user?.id != userId) {
+            throw RequestException(HttpStatus.FORBIDDEN, "Access denied")
+        }
+
+        val now = YearMonth.now()
+        val startOfMonth = Date.from(now.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
+        val endOfMonth = Date.from(now.atEndOfMonth().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant())
+
+        val monthlyTransactions = transactionRepository.findByUserAccount_IdAndDateBetween(
+            accountId,
+            startOfMonth,
+            endOfMonth
+        )
+
+        val income = monthlyTransactions
+            .filter { it.category?.categoryType == CategoryType.INCOME }
+            .sumOf { it.amount ?: 0.0 }
+
+        val expenses = monthlyTransactions
+            .filter { it.category?.categoryType == CategoryType.EXPENSE }
+            .sumOf { Math.abs(it.amount ?: 0.0) }
+
+        return CashflowDTO(
+            income = income,
+            expenses = expenses
+        )
     }
 
 

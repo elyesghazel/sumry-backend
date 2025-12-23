@@ -1,5 +1,6 @@
 package ch.sumry.core.module.transaction.controller
 
+import ch.sumry.core.module.transaction.dto.CashflowDTO
 import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
 import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
 import ch.sumry.core.module.transaction.dto.TransactionUpdateDTO
@@ -37,6 +38,11 @@ class TransactionController(private val service: TransactionService) {
     @PutMapping("/{transactionId}")
     fun updateTransaction(@PathVariable transactionId: String, @Valid @RequestBody dto: TransactionUpdateDTO, principal: Principal): TransactionResponseDTO {
         return service.update(UUID.fromString(transactionId), dto, principal)
+    }
+
+    @GetMapping("/cashflow/{userAccountIdStr}")
+    fun getCashflow(@PathVariable userAccountIdStr: String, principal: Principal): CashflowDTO {
+        return service.getIncomeAndExpenseMonth(userAccountIdStr, principal)
     }
 
     @DeleteMapping("/{transactionId}")

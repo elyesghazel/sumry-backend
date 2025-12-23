@@ -16,9 +16,9 @@ class UserService(private val repo: UserRepository, private val jwtService: JwtS
 
     fun getAll(): List<User> = repo.findAll()
 
-    fun getById(id: UUID, principal: Principal): UserResponseDto {
+    fun getById(id: UUID, principal: Principal?): UserResponseDto {
 
-        val providedUserId = UUID.fromString(principal.name)
+        val providedUserId = UUID.fromString(principal?.name)
 
         if (providedUserId != id) {
             throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
@@ -46,6 +46,7 @@ class UserService(private val repo: UserRepository, private val jwtService: JwtS
 
         return UserMapper.toDto(user)
     }
+
 
     fun update(userId: String, dto: UserUpdateDto, principal: Principal): UserResponseDto {
         val providedUserId = principal.name
