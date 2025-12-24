@@ -31,6 +31,6 @@ WORKDIR /app
 # Jar kopieren
 COPY --from=build /app/build/libs/*.jar app.jar
 
-EXPOSE 8090
+EXPOSE 48090
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

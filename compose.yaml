@@ -19,7 +19,7 @@ services:
     build: .                      # Baut das Dockerfile im selben Ordner
     container_name: sumry-backend # Ein schöner Name für logs
     ports:
-      - '8090:8090'               # Erreichbar unter localhost:8090
+      - '48090:48090'               # Erreichbar unter localhost:8090
     depends_on:
       - postgres
       - redis
