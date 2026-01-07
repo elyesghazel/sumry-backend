@@ -6,24 +6,23 @@ on:
       - main
       - master
     tags:
-      - 'v*.*.*'  # Git Tags wie v1.0.0
+      - 'v*.*.*'
 
 jobs:
   docker:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Repo auschecken
+      # 1️⃣ Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Docker Login
+      # 2️⃣ Docker Login (non-interactive)
       - name: Docker Login
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_URL }} -u ${{ secrets.REGISTRY_USER }} --password-stdin
 
-      # 3️⃣ Build Docker Image
+      # 3️⃣ Build & Tag
       - name: Build Docker Image
-        id: build
         run: |
           IMAGE_NAME="${{ secrets.REGISTRY_URL }}/sumry/backend"
           if [[ "${GITEA_REF}" == refs/tags/* ]]; then
@@ -33,11 +32,15 @@ jobs:
           fi
           echo "Building image: $IMAGE_NAME:$TAG"
           docker build -t $IMAGE_NAME:$TAG .
-          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
-          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
 
-      # 4️⃣ Push Docker Image
+      # 4️⃣ Push
       - name: Push Docker Image
         run: |
-          echo "Pushing image: $IMAGE_NAME:$IMAGE_TAG"
-          docker push $IMAGE_NAME:$IMAGE_TAG
+          IMAGE_NAME="${{ secrets.REGISTRY_URL }}/sumry/backend"
+          if [[ "${GITEA_REF}" == refs/tags/* ]]; then
+            TAG="${GITEA_REF#refs/tags/}"
+          else
+            TAG="latest"
+          fi
+          echo "Pushing image: $IMAGE_NAME:$TAG"
+          docker push $IMAGE_NAME:$TAG
