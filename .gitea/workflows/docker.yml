@@ -1,19 +1,43 @@
-name: Gitea Actions Demo
-run-name: ${{ gitea.actor }} is testing out Gitea Actions 🚀
-on: [push]
+name: Docker Build & Push
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*.*.*'  # Git Tags wie v1.0.0
 
 jobs:
-  Explore-Gitea-Actions:
+  docker:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "🎉 The job was automatically triggered by a ${{ gitea.event_name }} event."
-      - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by Gitea test!"
-      - run: echo "🔎 The name of your branch is ${{ gitea.ref }} and your repository is ${{ gitea.repository }}."
-      - name: Check out repository code
+      # 1️⃣ Repo auschecken
+      - name: Checkout repository
         uses: actions/checkout@v4
-      - run: echo "💡 The ${{ gitea.repository }} repository has been cloned to the runner."
-      - run: echo "🖥️ The workflow is now ready to test your code on the runner."
-      - name: List files in the repository
+
+      # 2️⃣ Docker Login
+      - name: Docker Login
         run: |
-          ls ${{ gitea.workspace }}
-      - run: echo "🍏 This job's status is ${{ job.status }}."
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_URL }} -u ${{ secrets.REGISTRY_USER }} --password-stdin
+
+      # 3️⃣ Build Docker Image
+      - name: Build Docker Image
+        id: build
+        run: |
+          IMAGE_NAME="${{ secrets.REGISTRY_URL }}/sumry/backend"
+          if [[ "${GITEA_REF}" == refs/tags/* ]]; then
+            TAG="${GITEA_REF#refs/tags/}"
+          else
+            TAG="latest"
+          fi
+          echo "Building image: $IMAGE_NAME:$TAG"
+          docker build -t $IMAGE_NAME:$TAG .
+          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+
+      # 4️⃣ Push Docker Image
+      - name: Push Docker Image
+        run: |
+          echo "Pushing image: $IMAGE_NAME:$IMAGE_TAG"
+          docker push $IMAGE_NAME:$IMAGE_TAG
