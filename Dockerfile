@@ -1,9 +1,15 @@
 # -----------------------------------------------------------------------------
-# STAGE 1: Build (Jetz mit Java 21!)
+# STAGE 1: Build (Java 21, mit Gradle Cache & Tools)
 # -----------------------------------------------------------------------------
-# WICHTIG: Hier stand vorher 17, jetzt 21
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /app
+
+# Tools installieren
+RUN apk add --no-cache bash curl unzip dos2unix
+
+# Gradle Cache Verzeichnis
+ENV GRADLE_USER_HOME=/gradle-cache
+RUN mkdir -p /gradle-cache
 
 # Gradle Dateien kopieren
 COPY gradlew .
@@ -11,20 +17,19 @@ COPY gradle gradle
 COPY build.gradle.kts .
 COPY settings.gradle.kts .
 
-# Line-Endings fixen (Windows -> Linux)
+# Line-Endings fixen & ausführbar machen
 RUN dos2unix gradlew || true
 RUN chmod +x gradlew
 
 # Source Code kopieren
 COPY src src
 
-# Bauen
-RUN ./gradlew bootJar -x test --no-daemon
+# Build: BootJar, Gradle Wrapper Cache nutzen
+RUN ./gradlew bootJar -x test --no-daemon --gradle-user-home $GRADLE_USER_HOME
 
 # -----------------------------------------------------------------------------
-# STAGE 2: Runtime (Auch hier Java 21!)
+# STAGE 2: Runtime (Java 21)
 # -----------------------------------------------------------------------------
-# WICHTIG: Hier stand vorher 17, jetzt 21
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
