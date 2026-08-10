@@ -82,6 +82,7 @@ class CategoryService(
         val categoryLabel = dto.label ?: throw RequestException(HttpStatus.BAD_REQUEST, "Category label must be provided for update")
         val category = categoryRepo.findByLabelAndUser_Id(categoryLabel, userId).orElseThrow { RequestException(HttpStatus.NOT_FOUND, "Category not found") }
 
+        category.parentGroup = dto.parentGroup ?: category.parentGroup
         category.color = dto.color ?: category.color
         category.icon = dto.icon ?: category.icon
         category.label = dto.newLabel ?: category.label

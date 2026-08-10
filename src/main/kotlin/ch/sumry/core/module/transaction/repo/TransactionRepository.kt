@@ -13,10 +13,13 @@ interface TransactionRepository: JpaRepository<Transaction, UUID> {
         startDate: Date,
         endDate: Date
     ): List<Transaction>
+
+    fun findByTransferGroupId(transferGroupId: UUID): List<Transaction>
+
     @Query("""
-    SELECT SUM(t.amount) 
-    FROM Transaction t 
-    WHERE t.category.id = :categoryId 
+    SELECT SUM(t.amount)
+    FROM Transaction t
+    WHERE t.category.id = :categoryId
       AND t.userAccount.user.id = :userId
       AND t.date BETWEEN :startDate AND :endDate
 """)

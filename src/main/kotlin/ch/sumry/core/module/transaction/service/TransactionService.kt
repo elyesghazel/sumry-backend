@@ -6,11 +6,17 @@ import ch.sumry.core.module.transaction.dto.CashflowDTO
 import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
 import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
 import ch.sumry.core.module.transaction.dto.TransactionUpdateDTO
+import ch.sumry.core.module.transaction.dto.TransferCreateDTO
+import ch.sumry.core.module.transaction.dto.TransferResponseDTO
+import ch.sumry.core.module.transaction.dto.TransferUpdateDTO
 import ch.sumry.core.module.transaction.mapper.TransactionMapper
+import ch.sumry.core.module.transaction.model.Transaction
 import ch.sumry.core.module.transaction.repo.TransactionRepository
+import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
 import ch.sumry.core.types.CategoryType
+import ch.sumry.core.types.TransactionKind
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -25,6 +31,41 @@ class TransactionService(
     private val userAccountRepository: UserAccountRepository,
     private val userRepository: UserRepository,
     private val categoryRepository: CategoryRepository) {
+
+    // ---------------------------------------------------------------- helpers
+
+    /** Loads an account and fails unless it belongs to [userId]. */
+    private fun ownedAccount(accountId: UUID, userId: UUID): UserAccount {
+        val account = userAccountRepository.findById(accountId).orElseThrow {
+            RequestException(HttpStatus.NOT_FOUND, "Account not found")
+        }
+        if (account.user?.id != userId) {
+            throw RequestException(HttpStatus.FORBIDDEN, "Forbidden: Account access denied")
+        }
+        return account
+    }
+
+    /** Applies a transaction's effect to the account balance and returns (before, after). */
+    private fun applyEffect(account: UserAccount, kind: TransactionKind, amount: Double): Pair<Double, Double> {
+        val before = account.currentBalance ?: 0.0
+        val after = before + kind.signedEffect(amount)
+        account.currentBalance = after
+        return before to after
+    }
+
+    /** Undoes a transaction's effect on the account balance. */
+    private fun revertEffect(account: UserAccount, kind: TransactionKind, amount: Double) {
+        account.currentBalance = (account.currentBalance ?: 0.0) - kind.signedEffect(amount)
+    }
+
+    private fun parseUuid(value: String, field: String): UUID =
+        try {
+            UUID.fromString(value)
+        } catch (ex: IllegalArgumentException) {
+            throw RequestException(HttpStatus.BAD_REQUEST, "$field is not a valid id")
+        }
+
+    // ------------------------------------------------------------- read paths
 
     fun getByUserId(userId: UUID, principal: Principal): List<TransactionResponseDTO> {
 
@@ -46,20 +87,14 @@ class TransactionService(
         return TransactionMapper.toDtoList(transactions)
     }
 
+    // ----------------------------------------------------- ordinary movements
+
     @Transactional
     fun logTransaction(dto: TransactionCreateDTO, principal: Principal): TransactionResponseDTO {
         val authenticatedUserId = UUID.fromString(principal.name)
-        val userAccountId = UUID.fromString(dto.userAccountId)
 
         // 1. Load User Account and check Ownership
-        val userAccountEntity = userAccountRepository.findById(userAccountId).orElseThrow {
-            RequestException(HttpStatus.NOT_FOUND, "Account not found")
-        }
-
-        // Check 1: Security (Ownership)
-        if (userAccountEntity.user?.id != authenticatedUserId) {
-            throw RequestException(HttpStatus.FORBIDDEN, "Forbidden: Account access denied")
-        }
+        val userAccountEntity = ownedAccount(parseUuid(dto.userAccountId, "userAccountId"), authenticatedUserId)
 
         // 2. Load Category Entity
         val categoryEntity = categoryRepository.findByLabelAndUser_Id(dto.categoryLabel, authenticatedUserId).orElseThrow {
@@ -73,21 +108,14 @@ class TransactionService(
             userAccountEntity
         )
 
-        // 4. Update Account Balance (Needs safe calculation)
-        val currentBalance = userAccountEntity.currentBalance ?: 0.0
-        val transactionAmount = transaction.amount ?: 0.0
-
-        val newBalance = if (categoryEntity.categoryType == CategoryType.INCOME) {
-            currentBalance + transactionAmount
-        } else {
-            currentBalance - transactionAmount
-        }
-
-        transaction.balanceBefore = currentBalance
-        transaction.balanceAfter = newBalance
-
-        // D. Den Account aktualisieren (mit dem berechneten newBalance!)
-        userAccountEntity.currentBalance = newBalance
+        // 4. Apply the balance effect
+        val (before, after) = applyEffect(
+            userAccountEntity,
+            transaction.effectiveKind(),
+            transaction.amount ?: 0.0
+        )
+        transaction.balanceBefore = before
+        transaction.balanceAfter = after
 
         // 5. Speichern
         userAccountRepository.save(userAccountEntity)
@@ -110,24 +138,18 @@ class TransactionService(
             throw RequestException(HttpStatus.FORBIDDEN, "Access denied")
         }
 
-        val account = transaction.userAccount!!
-        val amount = transaction.amount ?: 0.0
-        val type = transaction.category?.categoryType ?: CategoryType.EXPENSE
-
-        // check type
-        val currentBalance = account.currentBalance ?: 0.0
-
-        val newBalance = if (type == CategoryType.INCOME) {
-            currentBalance - amount
-        } else {
-            currentBalance + amount
+        // A transfer is one unit of work: deleting either leg removes both.
+        val groupId = transaction.transferGroupId
+        if (groupId != null) {
+            deleteTransfer(groupId, principal)
+            return
         }
 
-        account.currentBalance = newBalance
+        val account = transaction.userAccount!!
+        revertEffect(account, transaction.effectiveKind(), transaction.amount ?: 0.0)
 
-        // 4. save & delete
-        userAccountRepository.save(account) // update account balance
-        transactionRepository.delete(transaction) // delete transac
+        userAccountRepository.save(account)
+        transactionRepository.delete(transaction)
     }
 
     @Transactional
@@ -144,91 +166,198 @@ class TransactionService(
             throw RequestException(HttpStatus.FORBIDDEN, "Access denied")
         }
 
-        // load new useraccount
-        val targetAccountId: UUID? = if (dto.userAccountId != null) UUID.fromString(dto.userAccountId) else transaction.userAccount!!.id
-
-        val targetAccount = userAccountRepository.findById(targetAccountId!!).orElseThrow {
-            throw RequestException(HttpStatus.NOT_FOUND, "UserAccount not found")
+        if (transaction.transferGroupId != null) {
+            throw RequestException(
+                HttpStatus.BAD_REQUEST,
+                "This is a transfer leg. Use PUT /api/transactions/transfer/{transferGroupId}."
+            )
         }
 
-        // principal ownership
-        if (targetAccount.user?.id != userId) {
-            throw RequestException(HttpStatus.FORBIDDEN, "Access denied to target account")
-        }
-
-        // revert old transaction / effect
+        // 3. Resolve the target account (defaults to the current one)
         val oldAccount = transaction.userAccount!!
-        val oldAmount = transaction.amount ?: 0.0
-        val oldType = transaction.category?.categoryType ?: CategoryType.EXPENSE
-
-        // if expense take away, if income add back
-        val revertedBalance = if (oldType == CategoryType.INCOME) {
-            (oldAccount.currentBalance ?: 0.0) - oldAmount
+        val targetAccount = if (dto.userAccountId != null) {
+            ownedAccount(parseUuid(dto.userAccountId, "userAccountId"), userId)
         } else {
-            (oldAccount.currentBalance ?: 0.0) + oldAmount
+            oldAccount
         }
 
-        oldAccount.currentBalance = revertedBalance
-        userAccountRepository.save(oldAccount) // Save the "clean" state of the old account
+        // 4. Revert the old effect from the old account
+        revertEffect(oldAccount, transaction.effectiveKind(), transaction.amount ?: 0.0)
+        userAccountRepository.save(oldAccount)
 
-        // update
-
-        // Update simple fields
+        // 5. Apply the requested changes
         if (dto.description != null) transaction.description = dto.description
         if (dto.date != null) transaction.date = dto.date
         if (dto.amount != null) transaction.amount = dto.amount
 
-        // Update Category (if changed)
         if (dto.categoryLabel != null) {
             val newCategory = categoryRepository.findByLabelAndUser_IdAndIsActiveTrue(dto.categoryLabel, userId)
                 .orElseThrow { RequestException(HttpStatus.NOT_FOUND, "Category '${dto.categoryLabel}' not found") }
             transaction.category = newCategory
+            transaction.kind = newCategory.categoryType?.let { TransactionKind.of(it) } ?: transaction.kind
         }
 
-        // Update Account link
         transaction.userAccount = targetAccount
 
-        // apply new effect
+        // 6. Apply the new effect to the target account.
+        //    When the account did not change, `targetAccount` IS `oldAccount` and already carries
+        //    the reverted balance, so this reads the correct base either way.
+        val (before, after) = applyEffect(
+            targetAccount,
+            transaction.effectiveKind(),
+            transaction.amount ?: 0.0
+        )
+        transaction.balanceBefore = before
+        transaction.balanceAfter = after
 
-        // If oldAccount == targetAccount, use revertedBalance
-        val balanceBase = if (oldAccount.id == targetAccount.id) revertedBalance else (targetAccount.currentBalance ?: 0.0)
-
-        val newAmount = transaction.amount ?: 0.0
-        val newType = transaction.category?.categoryType ?: CategoryType.EXPENSE
-
-        val finalBalance = if (newType == CategoryType.INCOME) {
-            balanceBase + newAmount
-        } else {
-            balanceBase - newAmount
-        }
-
-        // Update the Target Account
-        targetAccount.currentBalance = finalBalance
-
-        // Update audit snapshots for the Transaction
-        transaction.balanceBefore = balanceBase
-        transaction.balanceAfter = finalBalance
-
-        // ==================================================================================
-        // STEP D: Save
-        // ==================================================================================
-        userAccountRepository.save(targetAccount) // Save the new balance
+        userAccountRepository.save(targetAccount)
         val savedTransaction = transactionRepository.save(transaction)
 
         return TransactionMapper.toDto(savedTransaction)
     }
 
+    // -------------------------------------------------------------- transfers
+
+    @Transactional
+    fun createTransfer(dto: TransferCreateDTO, principal: Principal): TransferResponseDTO {
+        val userId = UUID.fromString(principal.name)
+
+        val fromId = parseUuid(dto.fromAccountId, "fromAccountId")
+        val toId = parseUuid(dto.toAccountId, "toAccountId")
+        if (fromId == toId) {
+            throw RequestException(HttpStatus.BAD_REQUEST, "Source and destination account must differ")
+        }
+
+        val from = ownedAccount(fromId, userId)
+        val to = ownedAccount(toId, userId)
+
+        val groupId = UUID.randomUUID()
+        writeTransferLegs(groupId, from, to, dto.amount, dto.description, dto.date)
+
+        return TransferResponseDTO(
+            transferGroupId = groupId,
+            amount = dto.amount,
+            description = dto.description,
+            date = dto.date,
+            fromAccountId = from.id,
+            toAccountId = to.id,
+        )
+    }
+
+    @Transactional
+    fun updateTransfer(groupId: UUID, dto: TransferUpdateDTO, principal: Principal): TransferResponseDTO {
+        val userId = UUID.fromString(principal.name)
+        val legs = ownedTransferLegs(groupId, userId)
+
+        val outLeg = legs.first { it.effectiveKind() == TransactionKind.TRANSFER_OUT }
+        val inLeg = legs.first { it.effectiveKind() == TransactionKind.TRANSFER_IN }
+
+        // Revert both legs before recomputing.
+        revertEffect(outLeg.userAccount!!, TransactionKind.TRANSFER_OUT, outLeg.amount ?: 0.0)
+        revertEffect(inLeg.userAccount!!, TransactionKind.TRANSFER_IN, inLeg.amount ?: 0.0)
+        userAccountRepository.save(outLeg.userAccount!!)
+        userAccountRepository.save(inLeg.userAccount!!)
+
+        val amount = dto.amount ?: outLeg.amount ?: 0.0
+        val description = dto.description ?: outLeg.description
+        val date = dto.date ?: outLeg.date ?: Date()
+
+        val fromId = dto.fromAccountId?.let { parseUuid(it, "fromAccountId") } ?: outLeg.userAccount!!.id!!
+        val toId = dto.toAccountId?.let { parseUuid(it, "toAccountId") } ?: inLeg.userAccount!!.id!!
+        if (fromId == toId) {
+            throw RequestException(HttpStatus.BAD_REQUEST, "Source and destination account must differ")
+        }
+
+        val from = ownedAccount(fromId, userId)
+        val to = ownedAccount(toId, userId)
+
+        // Rewrite the pair from scratch so account changes are handled uniformly.
+        transactionRepository.deleteAll(legs)
+        transactionRepository.flush()
+        writeTransferLegs(groupId, from, to, amount, description, date)
+
+        return TransferResponseDTO(
+            transferGroupId = groupId,
+            amount = amount,
+            description = description,
+            date = date,
+            fromAccountId = from.id,
+            toAccountId = to.id,
+        )
+    }
+
+    @Transactional
+    fun deleteTransfer(groupId: UUID, principal: Principal) {
+        val userId = UUID.fromString(principal.name)
+        val legs = ownedTransferLegs(groupId, userId)
+
+        legs.forEach { leg ->
+            val account = leg.userAccount!!
+            revertEffect(account, leg.effectiveKind(), leg.amount ?: 0.0)
+            userAccountRepository.save(account)
+        }
+        transactionRepository.deleteAll(legs)
+    }
+
+    /** Loads both legs of a transfer, failing unless every leg belongs to [userId]. */
+    private fun ownedTransferLegs(groupId: UUID, userId: UUID): List<Transaction> {
+        val legs = transactionRepository.findByTransferGroupId(groupId)
+        if (legs.isEmpty()) {
+            throw RequestException(HttpStatus.NOT_FOUND, "Transfer not found")
+        }
+        if (legs.any { it.userAccount?.user?.id != userId }) {
+            throw RequestException(HttpStatus.FORBIDDEN, "Access denied")
+        }
+        return legs
+    }
+
+    private fun writeTransferLegs(
+        groupId: UUID,
+        from: UserAccount,
+        to: UserAccount,
+        amount: Double,
+        description: String?,
+        date: Date,
+    ) {
+        val outLeg = Transaction(
+            amount = amount,
+            description = description,
+            category = null,
+            kind = TransactionKind.TRANSFER_OUT,
+            transferGroupId = groupId,
+            date = date,
+            userAccount = from,
+        )
+        val (outBefore, outAfter) = applyEffect(from, TransactionKind.TRANSFER_OUT, amount)
+        outLeg.balanceBefore = outBefore
+        outLeg.balanceAfter = outAfter
+
+        val inLeg = Transaction(
+            amount = amount,
+            description = description,
+            category = null,
+            kind = TransactionKind.TRANSFER_IN,
+            transferGroupId = groupId,
+            date = date,
+            userAccount = to,
+        )
+        val (inBefore, inAfter) = applyEffect(to, TransactionKind.TRANSFER_IN, amount)
+        inLeg.balanceBefore = inBefore
+        inLeg.balanceAfter = inAfter
+
+        userAccountRepository.save(from)
+        userAccountRepository.save(to)
+        transactionRepository.save(outLeg)
+        transactionRepository.save(inLeg)
+    }
+
+    // ------------------------------------------------------------- reporting
 
     fun getIncomeAndExpenseMonth(userAccountIdStr: String, principal: Principal): CashflowDTO {
         val userId = UUID.fromString(principal.name)
-        val accountId = UUID.fromString(userAccountIdStr)
+        val accountId = parseUuid(userAccountIdStr, "userAccountId")
 
-        val account = userAccountRepository.findById(accountId)
-            .orElseThrow { RequestException(HttpStatus.NOT_FOUND, "Account not found") }
-
-        if (account.user?.id != userId) {
-            throw RequestException(HttpStatus.FORBIDDEN, "Access denied")
-        }
+        ownedAccount(accountId, userId)
 
         val now = YearMonth.now()
         val startOfMonth = Date.from(now.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant())
@@ -240,12 +369,13 @@ class TransactionService(
             endOfMonth
         )
 
+        // Transfers move money between the user's own accounts — they are neither income nor expense.
         val income = monthlyTransactions
-            .filter { it.category?.categoryType == CategoryType.INCOME }
+            .filter { it.effectiveKind() == TransactionKind.INCOME }
             .sumOf { it.amount ?: 0.0 }
 
         val expenses = monthlyTransactions
-            .filter { it.category?.categoryType == CategoryType.EXPENSE }
+            .filter { it.effectiveKind() == TransactionKind.EXPENSE }
             .sumOf { Math.abs(it.amount ?: 0.0) }
 
         return CashflowDTO(

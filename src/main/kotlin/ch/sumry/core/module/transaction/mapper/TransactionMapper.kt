@@ -5,6 +5,7 @@ import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
 import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
 import ch.sumry.core.module.transaction.model.Transaction
 import ch.sumry.core.module.user.model.UserAccount
+import ch.sumry.core.types.TransactionKind
 
 object TransactionMapper {
 
@@ -13,9 +14,12 @@ object TransactionMapper {
             id = entity.id,
             amount = entity.amount,
             description = entity.description,
-            categoryId = entity.category?.id!!, // Assuming category always exists for a transaction
+            categoryId = entity.category?.id,
+            categoryLabel = entity.category?.label,
+            kind = entity.effectiveKind(),
+            transferGroupId = entity.transferGroupId,
             date = entity.date,
-            userAccountId = entity.userAccount?.id, // Accessing UUID
+            userAccountId = entity.userAccount?.id,
             userId = entity.userAccount?.user?.id,
             balanceBefore = entity.balanceBefore,
             balanceAfter = entity.balanceAfter,
@@ -31,11 +35,11 @@ object TransactionMapper {
         userAccountEntity: UserAccount
     ): Transaction =
         Transaction(
-            // DTO fields are non-nullable primitives/objects, so we can access them directly
             amount = dto.amount,
             description = dto.description,
             date = dto.date,
             category = categoryEntity,
+            kind = categoryEntity.categoryType?.let { TransactionKind.of(it) } ?: TransactionKind.EXPENSE,
             userAccount = userAccountEntity,
         )
 

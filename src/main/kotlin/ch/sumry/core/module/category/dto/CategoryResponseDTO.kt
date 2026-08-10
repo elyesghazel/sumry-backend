@@ -6,6 +6,7 @@ import java.util.*
 data class CategoryResponseDTO(
     val id: UUID?,
     val label: String?,
+    val parentGroup: String?,
     val color: String?,
     val icon: String?,
     val categoryType: CategoryType?,

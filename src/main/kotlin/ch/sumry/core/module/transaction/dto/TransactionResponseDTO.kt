@@ -1,5 +1,6 @@
 package ch.sumry.core.module.transaction.dto
 
+import ch.sumry.core.types.TransactionKind
 import java.util.*
 
 data class TransactionResponseDTO(
@@ -7,7 +8,12 @@ data class TransactionResponseDTO(
     val amount: Double?,
     val description: String?,
 
-    var categoryId: UUID, // Assumed non-nullable if transaction exists
+    // null for transfer legs
+    var categoryId: UUID?,
+    val categoryLabel: String?,
+
+    val kind: TransactionKind,
+    val transferGroupId: UUID?,
 
     val date: Date?,
     val userAccountId: UUID?,
