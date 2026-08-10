@@ -4,6 +4,9 @@ import ch.sumry.core.module.transaction.dto.CashflowDTO
 import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
 import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
 import ch.sumry.core.module.transaction.dto.TransactionUpdateDTO
+import ch.sumry.core.module.transaction.dto.TransferCreateDTO
+import ch.sumry.core.module.transaction.dto.TransferResponseDTO
+import ch.sumry.core.module.transaction.dto.TransferUpdateDTO
 import ch.sumry.core.module.transaction.service.TransactionService
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
@@ -38,6 +41,26 @@ class TransactionController(private val service: TransactionService) {
     @PutMapping("/{transactionId}")
     fun updateTransaction(@PathVariable transactionId: String, @Valid @RequestBody dto: TransactionUpdateDTO, principal: Principal): TransactionResponseDTO {
         return service.update(UUID.fromString(transactionId), dto, principal)
+    }
+
+    @PostMapping("/transfer")
+    fun createTransfer(@Valid @RequestBody dto: TransferCreateDTO, principal: Principal): ResponseEntity<TransferResponseDTO> {
+        return ResponseEntity.status(201).body(service.createTransfer(dto, principal))
+    }
+
+    @PutMapping("/transfer/{transferGroupId}")
+    fun updateTransfer(
+        @PathVariable transferGroupId: UUID,
+        @Valid @RequestBody dto: TransferUpdateDTO,
+        principal: Principal
+    ): TransferResponseDTO {
+        return service.updateTransfer(transferGroupId, dto, principal)
+    }
+
+    @DeleteMapping("/transfer/{transferGroupId}")
+    fun deleteTransfer(@PathVariable transferGroupId: UUID, principal: Principal): ResponseEntity<Unit> {
+        service.deleteTransfer(transferGroupId, principal)
+        return ResponseEntity.noContent().build()
     }
 
     @GetMapping("/cashflow/{userAccountIdStr}")

@@ -7,6 +7,8 @@ data class CategoryCreateDTO(
     @field:NotBlank(message = "Category label is required")
     val label: String,
 
+    val parentGroup: String? = null,
+
     val color: String? = null,
     val icon: String? = null,
 

@@ -11,6 +11,18 @@ import javax.crypto.SecretKey
 @Service
 class JwtService(private val jwtProperties: JwtProperties) {
 
+    init {
+        // Fail fast at startup rather than on the first login with a missing or too-short key.
+        val decoded = try {
+            Decoders.BASE64.decode(jwtProperties.secret)
+        } catch (ex: Exception) {
+            throw IllegalStateException("jwt.secret (JWT_SECRET) must be valid Base64", ex)
+        }
+        require(decoded.size >= 32) {
+            "jwt.secret (JWT_SECRET) must decode to at least 32 bytes for HS256; got ${decoded.size}"
+        }
+    }
+
     fun generateToken(subject: String, extraClaims: Map<String, Any> = emptyMap()): String {
         val now = Date()
         val expiryDate = Date(now.time + jwtProperties.expirationMs)

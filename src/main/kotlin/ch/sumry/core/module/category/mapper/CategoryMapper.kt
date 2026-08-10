@@ -12,6 +12,7 @@ object CategoryMapper {
         CategoryResponseDTO(
             id = entity.id,
             label = entity.label,
+            parentGroup = entity.parentGroup,
             color = entity.color,
             icon = entity.icon,
             categoryType = entity.categoryType,
@@ -25,6 +26,7 @@ object CategoryMapper {
     fun fromDtoToEntity(dto: CategoryCreateDTO, userEntity: User): Category =
         Category(
             label = dto.label,
+            parentGroup = dto.parentGroup,
             color = dto.color,
             icon = dto.icon,
             categoryType = dto.categoryType,

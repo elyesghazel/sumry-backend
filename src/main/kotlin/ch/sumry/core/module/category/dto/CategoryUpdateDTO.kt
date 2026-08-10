@@ -8,6 +8,7 @@ data class CategoryUpdateDTO(
     val label: String? = null,
 
 
+    val parentGroup: String? = null,
     val color: String? = null,
     val icon: String? = null,
     val categoryType: CategoryType? = null,

@@ -13,6 +13,10 @@ class Category (
     val id: UUID? = null,
 
     var label: String? = null,
+
+    /** Optional grouping, e.g. "Food & Snacks" for the child category "Snacks". */
+    @Column(name = "parent_group")
+    var parentGroup: String? = null,
     var color: String? = null,
     var icon: String? = null,
 
