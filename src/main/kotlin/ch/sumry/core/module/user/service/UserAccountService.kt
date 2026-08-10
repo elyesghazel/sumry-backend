@@ -1,6 +1,9 @@
 package ch.sumry.core.module.user.service
 
 import ch.sumry.core.exception.RequestException
+import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
+import ch.sumry.core.module.transaction.service.TransactionService
+import ch.sumry.core.module.user.dto.accounts.AccountReconcileDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountCreateDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountResponseDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountUpdateDto
@@ -17,7 +20,11 @@ import java.util.*
 
 
 @Service
-class UserAccountService(private val repo: UserAccountRepository, private val userRepository: UserRepository) {
+class UserAccountService(
+    private val repo: UserAccountRepository,
+    private val userRepository: UserRepository,
+    private val transactionService: TransactionService,
+) {
 
     @PreAuthorize("hasRole('ADMIN')")
     fun getAll(): List<UserAccount> = repo.findAll()
@@ -111,6 +118,13 @@ class UserAccountService(private val repo: UserAccountRepository, private val us
         val updatedEntity = repo.save(entity)
         return UserAccountMapper.toDto(updatedEntity)
     }
+
+    /**
+     * Delegates to the transaction service, which owns balance arithmetic — reconciling
+     * has to go through the same code path that every other balance change does.
+     */
+    fun reconcile(accountId: UUID, dto: AccountReconcileDto, principal: Principal): TransactionResponseDTO? =
+        transactionService.reconcile(accountId, dto.newBalance, dto.note, principal)
 
     fun delete(accountId: UUID, principal: Principal): Boolean {
         val entity = repo.findById(accountId).orElseThrow {

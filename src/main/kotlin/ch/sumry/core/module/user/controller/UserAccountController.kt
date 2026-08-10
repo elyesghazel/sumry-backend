@@ -1,5 +1,7 @@
 package ch.sumry.core.module.user.controller
 
+import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
+import ch.sumry.core.module.user.dto.accounts.AccountReconcileDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountCreateDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountResponseDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountUpdateDto
@@ -48,6 +50,18 @@ class UserAccountController(private val service: UserAccountService) {
     @PutMapping("/{accountId}")
     fun update(@PathVariable accountId: UUID, @Valid @RequestBody dto: UserAccountUpdateDto, principal: Principal): UserAccountResponseDto =
         service.update(accountId, dto, principal)
+
+    @Tag(name = "User Accounts", description = "Set the real balance; the difference is booked as a transaction")
+    @PutMapping("/reconcile/{accountId}")
+    fun reconcile(
+        @PathVariable accountId: UUID,
+        @Valid @RequestBody dto: AccountReconcileDto,
+        principal: Principal
+    ): ResponseEntity<TransactionResponseDTO> {
+        val adjustment = service.reconcile(accountId, dto, principal)
+        // 204 when the account already matched and nothing needed booking.
+        return adjustment?.let { ResponseEntity.ok(it) } ?: ResponseEntity.noContent().build()
+    }
 
     @DeleteMapping("/{accountId}")
     fun delete(@PathVariable accountId: UUID, principal: Principal): ResponseEntity<Unit> {

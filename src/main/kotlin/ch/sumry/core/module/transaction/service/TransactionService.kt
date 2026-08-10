@@ -1,6 +1,7 @@
 package ch.sumry.core.module.transaction.service
 
 import ch.sumry.core.exception.RequestException
+import ch.sumry.core.module.category.model.Category
 import ch.sumry.core.module.category.repo.CategoryRepository
 import ch.sumry.core.module.transaction.dto.CashflowDTO
 import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
@@ -24,6 +25,9 @@ import java.security.Principal
 import java.time.YearMonth
 import java.time.ZoneId
 import java.util.*
+
+/** The label adjustments are booked under. */
+const val ADJUSTMENT_LABEL = "Einstellung"
 
 @Service
 class TransactionService(
@@ -350,6 +354,69 @@ class TransactionService(
         transactionRepository.save(outLeg)
         transactionRepository.save(inLeg)
     }
+
+    // ----------------------------------------------------------- reconciliation
+
+    /**
+     * Books the difference between an account's recorded balance and its real one.
+     *
+     * Overwriting the balance directly would leave history that no longer adds up to it,
+     * so the gap is written as an ordinary transaction instead. Returns null when the
+     * account already matches and there is nothing to book.
+     */
+    @Transactional
+    fun reconcile(accountId: UUID, newBalance: Double, note: String?, principal: Principal): TransactionResponseDTO? {
+        val userId = UUID.fromString(principal.name)
+        val account = ownedAccount(accountId, userId)
+
+        val current = account.currentBalance ?: 0.0
+        val delta = newBalance - current
+
+        // Anything under half a cent is rounding, not a real difference.
+        if (kotlin.math.abs(delta) < 0.005) return null
+
+        val category = adjustmentCategory(userId)
+        val kind = if (delta > 0) TransactionKind.INCOME else TransactionKind.EXPENSE
+
+        val transaction = Transaction(
+            amount = kotlin.math.abs(delta),
+            description = note?.takeIf { it.isNotBlank() } ?: "Abgleich",
+            category = category,
+            kind = kind,
+            date = Date(),
+            userAccount = account,
+        )
+
+        val (before, after) = applyEffect(account, kind, transaction.amount ?: 0.0)
+        transaction.balanceBefore = before
+        transaction.balanceAfter = after
+
+        userAccountRepository.save(account)
+        transactionRepository.save(transaction)
+
+        return TransactionMapper.toDto(transaction)
+    }
+
+    /**
+     * The category adjustments are booked against, created on first use.
+     *
+     * One category serves both directions: the transaction's own kind carries the sign,
+     * so an adjustment up and an adjustment down still group together in reports.
+     */
+    private fun adjustmentCategory(userId: UUID): Category =
+        categoryRepository.findByLabelAndUser_Id(ADJUSTMENT_LABEL, userId).orElseGet {
+            categoryRepository.save(
+                Category(
+                    label = ADJUSTMENT_LABEL,
+                    parentGroup = null,
+                    color = "#838300",
+                    icon = "options",
+                    categoryType = CategoryType.EXPENSE,
+                    user = userRepository.getReferenceById(userId),
+                    isActive = true,
+                )
+            )
+        }
 
     // ------------------------------------------------------------- reporting
 
