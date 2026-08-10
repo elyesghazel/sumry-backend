@@ -66,6 +66,31 @@ class UserService(private val repo: UserRepository, private val jwtService: JwtS
         return UserMapper.toDto(user)
     }
 
+    /**
+     * Changes the caller's own password.
+     *
+     * Knowing the current password is required even though the caller already holds a valid
+     * token, so a leaked or borrowed token cannot be used to lock the real owner out.
+     */
+    fun changePassword(dto: PasswordChangeDto, principal: Principal) {
+        val userId = UUID.fromString(principal.name)
+
+        val user = repo.findById(userId).orElseThrow {
+            RequestException(HttpStatus.NOT_FOUND, "User not found")
+        }
+
+        val encoder = org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()
+        if (!encoder.matches(dto.currentPassword, user.password)) {
+            throw RequestException(HttpStatus.UNAUTHORIZED, "Current password is incorrect")
+        }
+        if (encoder.matches(dto.newPassword, user.password)) {
+            throw RequestException(HttpStatus.BAD_REQUEST, "New password must differ from the current one")
+        }
+
+        user.encodePassword(dto.newPassword)
+        repo.save(user)
+    }
+
     fun login(dto: LoginDto): LoginResponseDto {
         val user = repo.findByEmail(dto.email)
             ?: throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")

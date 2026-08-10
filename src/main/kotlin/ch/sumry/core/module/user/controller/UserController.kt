@@ -49,6 +49,15 @@ class UserController(private val service: UserService) {
     fun update(@Valid @RequestBody dto: UserUpdateDto, @PathVariable userId: String, principal: Principal): UserResponseDto =
         service.update(userId, dto, principal)
 
+    @PutMapping("/password")
+    fun changePassword(
+        @Valid @RequestBody dto: PasswordChangeDto,
+        principal: Principal
+    ): ResponseEntity<Unit> {
+        service.changePassword(dto, principal)
+        return ResponseEntity.noContent().build()
+    }
+
     @PostMapping("/login")
     fun login(@Valid @RequestBody dto: LoginDto): LoginResponseDto =
         service.login(dto)
