@@ -19,9 +19,12 @@ class UserPreferences(
     @GeneratedValue(strategy = GenerationType.UUID)
     val id: UUID? = null,
 
+    // Nullable in Kotlin, NOT NULL in the schema — the same shape the other entities use.
+    // Every constructor parameter needs a default so Kotlin emits the no-argument
+    // constructor Hibernate requires to materialise a row.
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    val user: User,
+    var user: User? = null,
 
     var preferredCurrency: String = "CHF",
 
