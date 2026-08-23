@@ -14,7 +14,7 @@ import java.util.*
 @Service
 class UserService(private val repo: UserRepository, private val jwtService: JwtService) {
 
-    fun getAll(): List<User> = repo.findAll()
+    fun getAll(): List<UserResponseDto> = repo.findAll().map { UserMapper.toDto(it) }
 
     fun getById(id: UUID, principal: Principal?): UserResponseDto {
 

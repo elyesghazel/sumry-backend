@@ -5,7 +5,6 @@ import ch.sumry.core.module.user.dto.accounts.AccountReconcileDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountCreateDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountResponseDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountUpdateDto
-import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.module.user.service.UserAccountService
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
@@ -23,12 +22,12 @@ class UserAccountController(private val service: UserAccountService) {
     @Tag(name = "User Accounts", description = "Banking Accounts like cash, card, savings")
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/all")
-    fun getAll(): List<UserAccount> = service.getAll()
+    fun getAll(): List<UserAccountResponseDto> = service.getAll()
 
 
     @Tag(name = "Users", description = "Get all banking accounts from specific User")
     @GetMapping("/user/{userId}")
-    fun getFromUser(@PathVariable userId: UUID, principal: Principal): List<UserAccount> = service.getAllFromUser(userId, principal)
+    fun getFromUser(@PathVariable userId: UUID, principal: Principal): List<UserAccountResponseDto> = service.getAllFromUser(userId, principal)
 
     @GetMapping("/")
     fun getFromPrincipal(principal: Principal): List<UserAccountResponseDto> = service.getAllFromPrincipal(principal)

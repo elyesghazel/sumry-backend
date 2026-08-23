@@ -1,5 +1,6 @@
 package ch.sumry.core.module.user.model
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.*
 import java.util.*
 
@@ -15,6 +16,9 @@ class UserAccount (
     var currentBalance: Double? = null,
 
 
+    // The owner is carried as a plain id on the response DTO; serialising the whole
+    // User from here dragged the password hash into the payload.
+    @field:JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     val user: User? = null,
 

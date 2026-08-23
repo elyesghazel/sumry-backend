@@ -1,7 +1,6 @@
 package ch.sumry.core.module.user.controller
 
 import ch.sumry.core.module.user.dto.auth.*
-import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.service.UserService
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -35,7 +34,7 @@ class UserController(private val service: UserService) {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
-    fun getAll(): List<User> = service.getAll()
+    fun getAll(): List<UserResponseDto> = service.getAll()
 
     @GetMapping("/{id}")
     fun getById(@PathVariable id: String, principal: Principal): UserResponseDto =

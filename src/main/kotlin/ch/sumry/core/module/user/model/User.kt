@@ -15,6 +15,9 @@ class User(
     var username: String,
     var email: String,
 
+    // Never serialise the hash. Belt and braces with the DTO-returning controllers:
+    // an endpoint that returns this entity by mistake still cannot leak it.
+    @field:JsonIgnore
     @Column(nullable = false)
     var password: String,
 

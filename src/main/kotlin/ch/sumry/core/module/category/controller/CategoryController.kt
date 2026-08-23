@@ -15,7 +15,7 @@ class CategoryController (private val categoryService: CategoryService) {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/admin")
-    fun getAll() = categoryService.getAll()
+    fun getAll(): List<CategoryResponseDTO> = categoryService.getAll()
 
     @GetMapping("/user")
     fun getAllFromUser(principal: Principal): List<CategoryResponseDTO> =

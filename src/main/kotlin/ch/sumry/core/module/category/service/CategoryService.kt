@@ -37,7 +37,7 @@ class CategoryService(
         return category
     }
 
-    fun getAll() = categoryRepo.findAll()
+    fun getAll(): List<CategoryResponseDTO> = CategoryMapper.toDtoList(categoryRepo.findAll())
 
     fun getAllFromUser(principal: Principal): List<CategoryResponseDTO> {
         val userId = UUID.fromString(principal.name)

@@ -27,9 +27,9 @@ class UserAccountService(
 ) {
 
     @PreAuthorize("hasRole('ADMIN')")
-    fun getAll(): List<UserAccount> = repo.findAll()
+    fun getAll(): List<UserAccountResponseDto> = UserAccountMapper.toDtoList(repo.findAll())
 
-    fun getAllFromUser(userId: UUID, principal: Principal): List<UserAccount> {
+    fun getAllFromUser(userId: UUID, principal: Principal): List<UserAccountResponseDto> {
         // check if userid from principal is matching with userid
         val providedUserId = UUID.fromString(principal.name)
 
@@ -37,7 +37,7 @@ class UserAccountService(
             throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
         }
 
-        return repo.findByUserId(userId)
+        return UserAccountMapper.toDtoList(repo.findByUserId(userId))
 
     }
     fun getAllFromPrincipal(principal: Principal): List<UserAccountResponseDto> {
