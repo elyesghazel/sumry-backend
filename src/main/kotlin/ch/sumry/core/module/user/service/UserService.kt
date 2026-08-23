@@ -6,13 +6,23 @@ import ch.sumry.core.module.user.mapper.UserMapper
 import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.repo.UserRepository
 import ch.sumry.core.security.JwtService
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import java.security.Principal
 import java.util.*
 
 @Service
-class UserService(private val repo: UserRepository, private val jwtService: JwtService) {
+class UserService(
+    private val repo: UserRepository,
+    private val jwtService: JwtService,
+    /**
+     * Self-registration is off by default. The API is reachable from the internet, so an
+     * open register endpoint lets anyone create accounts on a personal instance.
+     */
+    @Value("\${sumry.registration.enabled:false}")
+    private val registrationEnabled: Boolean,
+) {
 
     fun getAll(): List<UserResponseDto> = repo.findAll().map { UserMapper.toDto(it) }
 
@@ -29,6 +39,9 @@ class UserService(private val repo: UserRepository, private val jwtService: JwtS
         return UserMapper.toDto(user)
     }
     fun register(dto: UserCreateDto): UserResponseDto {
+        if (!registrationEnabled) {
+            throw RequestException(HttpStatus.FORBIDDEN, "Registration is disabled on this instance")
+        }
         if (repo.existsByUsername(dto.username)) {
             throw RequestException(HttpStatus.CONFLICT, "Username already taken")
         }
