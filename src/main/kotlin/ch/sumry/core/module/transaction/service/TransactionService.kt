@@ -6,6 +6,9 @@ import ch.sumry.core.module.category.repo.CategoryRepository
 import ch.sumry.core.module.transaction.dto.CashflowDTO
 import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
 import ch.sumry.core.module.transaction.dto.TransactionPageDTO
+import ch.sumry.core.module.transaction.dto.QuickEntryDTO
+import ch.sumry.core.module.transaction.dto.QuickEntryParsed
+import ch.sumry.core.module.transaction.dto.QuickEntryRequest
 import ch.sumry.core.module.transaction.dto.TransactionSearchQuery
 import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
 import ch.sumry.core.module.transaction.dto.TransactionUpdateDTO
@@ -137,6 +140,78 @@ class TransactionService(
         val transactions = transactionRepository.findByUserAccount_User_Id(userId)
 
         return TransactionMapper.toDtoList(transactions)
+    }
+
+    // ------------------------------------------------------------ quick entry
+
+    /**
+     * "12.50 kebab cash yesterday" → parsed, and booked when asked and complete.
+     * A category can come from the text or from the rules; with neither, the entry is
+     * returned as not ready and the caller fills the gap.
+     */
+    @Transactional
+    fun quick(req: QuickEntryRequest, principal: Principal): QuickEntryDTO {
+        val userId = UUID.fromString(principal.name)
+        val accounts = userAccountRepository.findByUserId(userId)
+        val categories = categoryRepository.findAll().filter { it.user?.id == userId && it.isActive != false }
+        val parsed = QuickEntryParser.parse(req.text, accounts, categories)
+        val missing = parsed.missing.toMutableList()
+
+        val account = req.accountId?.let { ownedAccount(it, userId) } ?: parsed.account
+        if (account == null) missing += "account"
+
+        var category = parsed.category
+        var source: String? = category?.let { "explicit" }
+        if (category == null && !parsed.isTransfer && account != null) {
+            category = rules.suggest(userId, parsed.description, account.id)
+            if (category != null) source = "rule"
+        }
+        if (category == null && !parsed.isTransfer) missing += "category"
+        if (parsed.incomeHint && category?.categoryType == CategoryType.EXPENSE) {
+            missing += "category (the text says income but '${category?.label}' is an expense category)"
+        }
+        val kind = when {
+            parsed.isTransfer -> TransactionKind.TRANSFER_OUT
+            category?.categoryType == CategoryType.INCOME -> TransactionKind.INCOME
+            else -> TransactionKind.EXPENSE
+        }
+        val ready = missing.isEmpty()
+        val date = Date.from(parsed.date.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant())
+
+        var booked: TransactionResponseDTO? = null
+        var groupId: UUID? = null
+        if (req.book && ready) {
+            if (parsed.isTransfer) {
+                groupId = createTransfer(
+                    TransferCreateDTO(parsed.amount!!, parsed.description.takeIf { it.isNotBlank() && it != "Transfer" }, account!!.id.toString(), parsed.toAccount!!.id.toString(), date),
+                    principal,
+                ).transferGroupId
+            } else {
+                booked = logTransaction(
+                    TransactionCreateDTO(parsed.amount!!, parsed.description.takeIf { it.isNotBlank() }, category!!.label, date, account!!.id.toString()),
+                    principal,
+                )
+            }
+        }
+        return QuickEntryDTO(
+            parsed = QuickEntryParsed(
+                amount = parsed.amount,
+                description = parsed.description,
+                date = parsed.date,
+                kind = kind,
+                accountId = account?.id,
+                accountName = account?.accountName,
+                toAccountId = parsed.toAccount?.id,
+                toAccountName = parsed.toAccount?.accountName,
+                categoryLabel = category?.label,
+                categoryColor = category?.color,
+                categorySource = source,
+            ),
+            missing = missing,
+            ready = ready,
+            booked = booked,
+            transferGroupId = groupId,
+        )
     }
 
     // ----------------------------------------------------- ordinary movements

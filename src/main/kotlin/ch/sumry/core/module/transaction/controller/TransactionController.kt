@@ -2,6 +2,8 @@ package ch.sumry.core.module.transaction.controller
 
 import ch.sumry.core.module.transaction.dto.CashflowDTO
 import ch.sumry.core.module.transaction.dto.TransactionPageDTO
+import ch.sumry.core.module.transaction.dto.QuickEntryDTO
+import ch.sumry.core.module.transaction.dto.QuickEntryRequest
 import ch.sumry.core.module.transaction.dto.TransactionSearchQuery
 import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
 import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
@@ -58,6 +60,10 @@ class TransactionController(private val service: TransactionService) {
         TransactionSearchQuery(q, accountId, categoryLabel, kind, from, to, min, max, page, size, sort, dir),
         principal,
     )
+
+    /** Natural-language entry: parse, and book when `book` is true and nothing is missing. */
+    @PostMapping("/quick")
+    fun quick(@RequestBody req: QuickEntryRequest, principal: Principal): QuickEntryDTO = service.quick(req, principal)
 
     @PostMapping("/")
     fun createTransaction(@Valid @RequestBody dto: TransactionCreateDTO, principal: Principal): TransactionResponseDTO {

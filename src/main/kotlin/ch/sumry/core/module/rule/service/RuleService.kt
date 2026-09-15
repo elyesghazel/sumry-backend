@@ -72,6 +72,10 @@ class RuleService(
         return rule.category
     }
 
+    /** Like [categorise] but without counting a hit — for previews. */
+    fun suggest(userId: UUID, description: String?, accountId: UUID?): Category? =
+        firstMatch(userId, description, accountId)?.category
+
     fun test(dto: RuleTestDTO, principal: Principal): RuleMatchDTO {
         val rule = firstMatch(UUID.fromString(principal.name), dto.description, dto.accountId)
         return RuleMatchDTO(rule?.let { toDto(it) }, rule?.category?.label)
