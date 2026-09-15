@@ -1,6 +1,8 @@
 package ch.sumry.core.module.transaction.controller
 
 import ch.sumry.core.module.transaction.dto.CashflowDTO
+import ch.sumry.core.module.transaction.dto.TransactionPageDTO
+import ch.sumry.core.module.transaction.dto.TransactionSearchQuery
 import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
 import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
 import ch.sumry.core.module.transaction.dto.TransactionUpdateDTO
@@ -12,7 +14,10 @@ import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import org.springframework.format.annotation.DateTimeFormat
+import java.math.BigDecimal
 import java.security.Principal
+import java.time.LocalDate
 import java.util.*
 
 
@@ -32,6 +37,27 @@ class TransactionController(private val service: TransactionService) {
     }
 
 
+
+    /** GET /api/transactions/search?q=&accountId=&categoryLabel=&kind=&from=&to=&min=&max=&page=&size=&sort=&dir= */
+    @GetMapping("/search")
+    fun search(
+        @RequestParam(required = false) q: String?,
+        @RequestParam(required = false) accountId: UUID?,
+        @RequestParam(required = false) categoryLabel: String?,
+        @RequestParam(required = false) kind: String?,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate?,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate?,
+        @RequestParam(required = false) min: BigDecimal?,
+        @RequestParam(required = false) max: BigDecimal?,
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "50") size: Int,
+        @RequestParam(defaultValue = "date") sort: String,
+        @RequestParam(defaultValue = "desc") dir: String,
+        principal: Principal,
+    ): TransactionPageDTO = service.search(
+        TransactionSearchQuery(q, accountId, categoryLabel, kind, from, to, min, max, page, size, sort, dir),
+        principal,
+    )
 
     @PostMapping("/")
     fun createTransaction(@Valid @RequestBody dto: TransactionCreateDTO, principal: Principal): TransactionResponseDTO {

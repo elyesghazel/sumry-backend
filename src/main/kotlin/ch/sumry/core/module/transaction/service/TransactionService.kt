@@ -5,6 +5,8 @@ import ch.sumry.core.module.category.model.Category
 import ch.sumry.core.module.category.repo.CategoryRepository
 import ch.sumry.core.module.transaction.dto.CashflowDTO
 import ch.sumry.core.module.transaction.dto.TransactionCreateDTO
+import ch.sumry.core.module.transaction.dto.TransactionPageDTO
+import ch.sumry.core.module.transaction.dto.TransactionSearchQuery
 import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
 import ch.sumry.core.module.transaction.dto.TransactionUpdateDTO
 import ch.sumry.core.module.transaction.dto.TransferCreateDTO
@@ -13,6 +15,7 @@ import ch.sumry.core.module.transaction.dto.TransferUpdateDTO
 import ch.sumry.core.module.transaction.mapper.TransactionMapper
 import ch.sumry.core.module.transaction.model.Transaction
 import ch.sumry.core.module.transaction.repo.TransactionRepository
+import ch.sumry.core.module.transaction.repo.TransactionSearch
 import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
@@ -39,7 +42,9 @@ class TransactionService(
     private val transactionRepository: TransactionRepository,
     private val userAccountRepository: UserAccountRepository,
     private val userRepository: UserRepository,
-    private val categoryRepository: CategoryRepository) {
+    private val categoryRepository: CategoryRepository,
+    private val search: TransactionSearch,
+) {
 
     // ---------------------------------------------------------------- helpers
 
@@ -87,6 +92,20 @@ class TransactionService(
         val transactions = transactionRepository.findByUserAccount_User_Id(userId)
 
         return TransactionMapper.toDtoList(transactions)
+    }
+
+    /** Filtered, sorted, paged — the list the Activity screen scrolls, with totals for the whole match. */
+    fun search(query: TransactionSearchQuery, principal: Principal): TransactionPageDTO {
+        val userId = UUID.fromString(principal.name)
+        val page = transactionRepository.findAll(search.specification(userId, query), search.pageable(query))
+        return TransactionPageDTO(
+            items = TransactionMapper.toDtoList(page.content),
+            page = page.number,
+            size = page.size,
+            total = page.totalElements,
+            totalPages = page.totalPages,
+            sums = search.sums(userId, query),
+        )
     }
 
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")

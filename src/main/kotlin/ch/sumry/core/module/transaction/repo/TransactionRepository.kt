@@ -4,10 +4,11 @@ import java.math.BigDecimal
 
 import ch.sumry.core.module.transaction.model.Transaction
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 import org.springframework.data.jpa.repository.Query
 import java.util.*
 
-interface TransactionRepository: JpaRepository<Transaction, UUID> {
+interface TransactionRepository: JpaRepository<Transaction, UUID>, JpaSpecificationExecutor<Transaction> {
 
     fun findByUserAccount_User_Id(userId: UUID): List<Transaction>
     fun findByUserAccount_IdAndDateBetween(
