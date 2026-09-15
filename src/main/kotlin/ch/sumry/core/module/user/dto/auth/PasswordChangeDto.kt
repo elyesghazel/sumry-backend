@@ -8,6 +8,6 @@ data class PasswordChangeDto(
     val currentPassword: String,
 
     @field:NotBlank(message = "New password is required")
-    @field:Size(min = 8, message = "New password must be at least 8 characters long")
+    @field:Size(min = 12, message = "New password must be at least 12 characters long")
     val newPassword: String,
 )

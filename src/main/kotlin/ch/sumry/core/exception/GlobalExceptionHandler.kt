@@ -14,6 +14,8 @@ import kotlin.reflect.KClass
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
+    private val log = org.slf4j.LoggerFactory.getLogger(javaClass)
+
 
     @ExceptionHandler(RequestException::class)
     fun handleRequestException(ex: RequestException): ResponseEntity<Map<String, String>> {
@@ -83,9 +85,11 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(NullPointerException::class)
     fun handleNullPointerException(ex: NullPointerException): ResponseEntity<Map<String, String>> {
+        // The detail goes to the log, not to the caller: a 500 body is not the place for internals.
+        log.error("Unhandled null", ex)
         return ResponseEntity
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
-            .body(mapOf("error" to "Internal Server Error", "message" to (ex.message ?: "A null value was encountered where it is not allowed")))
+            .body(mapOf("error" to "Internal Server Error"))
     }
 
     @ExceptionHandler(MissingServletRequestParameterException::class)

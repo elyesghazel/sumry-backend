@@ -13,6 +13,6 @@ data class UserCreateDto(
     val email: String,
 
     @field:NotBlank(message = "Password is required")
-    @field:Size(min = 6, message = "Password must be at least 6 characters long")
+    @field:Size(min = 12, message = "Password must be at least 12 characters long")
     val password: String
 )

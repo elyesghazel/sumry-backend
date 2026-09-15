@@ -26,6 +26,8 @@ class UserServiceUnitTest {
     // --- Mocks der Abhängigkeiten ---
     private val userRepo: UserRepository = mockk(relaxed = true)
     private val jwtService: JwtService = mockk(relaxed = true)
+    private val rateLimiter: ch.sumry.core.security.LoginRateLimiter = mockk(relaxed = true)
+    private val revocation: ch.sumry.core.security.TokenRevocationService = mockk(relaxed = true)
     private lateinit var userService: UserService
 
     // --- Konstanten für Resource Ownership Tests ---
@@ -40,7 +42,7 @@ class UserServiceUnitTest {
     @BeforeEach
     fun setUp() {
         // 1. Service initialisieren
-        userService = UserService(userRepo, jwtService, registrationEnabled = true)
+        userService = UserService(userRepo, jwtService, rateLimiter, revocation, registrationEnabled = true)
 
         // 2. Mock-Principal-Objekte initialisieren (Principal.name = UUID)
         ownerPrincipal = mockk<Principal>().also {
@@ -165,7 +167,7 @@ class UserServiceUnitTest {
     @Test
     fun `register should throw CONFLICT if username is taken`() {
         // ARRANGE
-        val dto = UserCreateDto("testuser", "new@example.com", "SecurePwd1")
+        val dto = UserCreateDto("testuser", "new@example.com", "SecurePassword12")
         every { userRepo.existsByUsername(dto.username) } returns true
 
         // ACT & ASSERT

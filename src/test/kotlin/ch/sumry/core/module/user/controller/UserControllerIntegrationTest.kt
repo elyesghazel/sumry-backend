@@ -67,7 +67,7 @@ class UserControllerIntegrationTest {
 
     @Test
     fun `register should create user and return 200 OK`() {
-        val createDto = UserCreateDto("newuser", "new@example.com", "SecurePwd1")
+        val createDto = UserCreateDto("newuser", "new@example.com", "SecurePassword12")
 
         every { userService.register(any()) } returns UserResponseDto(UUID.randomUUID(), "newuser", "new@example.com")
 
@@ -83,7 +83,7 @@ class UserControllerIntegrationTest {
 
     @Test
     fun `register should return 409 Conflict if user exists`() {
-        val createDto = UserCreateDto("exist", "exist@e.com", "SecurePwd1")
+        val createDto = UserCreateDto("exist", "exist@e.com", "SecurePassword12")
         every { userService.register(any()) } throws RequestException(HttpStatus.CONFLICT, "Username already taken")
 
         mockMvc.perform(post("/api/users/register")
@@ -96,7 +96,7 @@ class UserControllerIntegrationTest {
     @Test
     fun `login should return 200 OK and JWT on success`() {
         val responseDto = LoginResponseDto("mocked.jwt.token", LOGIN_DTO.email)
-        every { userService.login(any()) } returns responseDto
+        every { userService.login(any(), any()) } returns responseDto
 
         mockMvc.perform(post("/api/users/login")
             .with(csrf())
@@ -108,7 +108,7 @@ class UserControllerIntegrationTest {
 
     @Test
     fun `login should return 401 Unauthorized on failure`() {
-        every { userService.login(any()) } throws RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
+        every { userService.login(any(), any()) } throws RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
 
         mockMvc.perform(post("/api/users/login")
             .with(csrf())
