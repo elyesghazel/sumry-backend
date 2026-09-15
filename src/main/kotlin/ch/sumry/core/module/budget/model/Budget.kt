@@ -2,6 +2,7 @@ package ch.sumry.core.module.budget.model
 
 import ch.sumry.core.module.category.model.Category
 import ch.sumry.core.module.user.model.User
+import ch.sumry.core.types.BudgetType
 import ch.sumry.core.types.Money
 import jakarta.persistence.*
 import java.math.BigDecimal
@@ -23,8 +24,22 @@ class Budget(
 
     @ManyToOne
     @JoinColumn(name = "user_id")
-    var user: User? = null
+    var user: User? = null,
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    var period: BudgetType = BudgetType.MONTHLY,
+
+    /** Carry what was not spent (or overspent) into the next period. */
+    @Column(nullable = false)
+    var rollover: Boolean = false,
+
+    /** Day a monthly period starts on, 1–28. Ignored for other periods. */
+    @Column(name = "start_day", nullable = false)
+    var startDay: Int = 1,
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    var createdAt: Date = Date(),
 ) {
     constructor(maxAmount: BigDecimal, category: Category, user: User) : this(
         null,

@@ -9,7 +9,9 @@ import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.format.annotation.DateTimeFormat
 import java.security.Principal
+import java.time.LocalDate
 import java.util.*
 
 @RestController
@@ -26,16 +28,20 @@ class BudgetController(private val budgetService: BudgetService) {
         return ResponseEntity(createdBudget, HttpStatus.CREATED)
     }
 
-    // GET /api/budgets/progress?month=12&year=2025
+    /**
+     * GET /api/budgets/progress?date=2026-09-15 — the period containing that date (default today).
+     * The older month/year form still works and means the period containing the 15th of that month.
+     */
     @GetMapping("/progress")
     fun getProgress(
-        @RequestParam month: Int,
-        @RequestParam year: Int,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) date: LocalDate?,
+        @RequestParam(required = false) month: Int?,
+        @RequestParam(required = false) year: Int?,
         principal: Principal
     ): ResponseEntity<List<BudgetProgressDTO>> {
         val userId = UUID.fromString(principal.name)
-        val progressList = budgetService.getBudgetProgress(userId, month, year)
-        return ResponseEntity.ok(progressList)
+        val at = date ?: if (month != null && year != null) LocalDate.of(year, month, 15) else LocalDate.now()
+        return ResponseEntity.ok(budgetService.getBudgetProgress(userId, at))
     }
 
     @GetMapping
