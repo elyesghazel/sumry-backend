@@ -1,11 +1,13 @@
 package ch.sumry.core.module.transaction.dto
 
+import java.math.BigDecimal
+
 import ch.sumry.core.types.TransactionKind
 import java.util.*
 
 data class TransactionResponseDTO(
     val id: UUID?,
-    val amount: Double?,
+    val amount: BigDecimal?,
     val description: String?,
 
     // null for transfer legs
@@ -19,6 +21,6 @@ data class TransactionResponseDTO(
     val userAccountId: UUID?,
     val userId: UUID?,
 
-    val balanceBefore: Double?,
-    val balanceAfter: Double?
+    val balanceBefore: BigDecimal?,
+    val balanceAfter: BigDecimal?
 )

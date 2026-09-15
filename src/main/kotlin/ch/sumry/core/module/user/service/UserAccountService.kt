@@ -12,6 +12,7 @@ import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
 import jakarta.transaction.Transactional
+import ch.sumry.core.types.money
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Service
@@ -97,7 +98,7 @@ class UserAccountService(
         }
 
         entity.accountName = dto.accountName ?: entity.accountName
-        entity.currentBalance = dto.currentBalance ?:  entity.currentBalance
+        entity.currentBalance = dto.currentBalance?.money() ?: entity.currentBalance
 
         val updatedEntity = repo.save(entity)
         return UserAccountMapper.toDto(updatedEntity)
@@ -113,7 +114,7 @@ class UserAccountService(
             throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
         }
 
-        entity.currentBalance = dto.currentBalance ?: entity.currentBalance
+        entity.currentBalance = dto.currentBalance?.money() ?: entity.currentBalance
 
         val updatedEntity = repo.save(entity)
         return UserAccountMapper.toDto(updatedEntity)

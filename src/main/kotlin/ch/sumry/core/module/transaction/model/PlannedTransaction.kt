@@ -5,6 +5,7 @@ import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.model.UserAccount
 import jakarta.persistence.*
 import java.time.LocalDate
+import java.math.BigDecimal
 import java.util.*
 
 @Entity
@@ -15,7 +16,8 @@ class PlannedTransaction(
     var id: UUID? = null,
 
     var name: String? = null,
-    var amount: Double? = null,
+    @Column(precision = 14, scale = 2)
+    var amount: BigDecimal? = null,
     var description: String? = null,
     var startDate: LocalDate? = null,
     var endDate: LocalDate? = null, // null = indefinite

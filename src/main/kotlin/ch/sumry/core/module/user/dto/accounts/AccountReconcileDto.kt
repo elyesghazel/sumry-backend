@@ -1,5 +1,7 @@
 package ch.sumry.core.module.user.dto.accounts
 
+import java.math.BigDecimal
+
 /**
  * Bring an account in line with reality ("abgleichen").
  *
@@ -8,6 +10,6 @@ package ch.sumry.core.module.user.dto.accounts
  * history keeps adding up to the current figure.
  */
 data class AccountReconcileDto(
-    val newBalance: Double,
+    val newBalance: BigDecimal,
     val note: String? = null,
 )

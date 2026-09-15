@@ -6,6 +6,7 @@ import ch.sumry.core.module.transaction.dto.TransactionResponseDTO
 import ch.sumry.core.module.transaction.model.Transaction
 import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.types.TransactionKind
+import ch.sumry.core.types.money
 
 object TransactionMapper {
 
@@ -35,7 +36,7 @@ object TransactionMapper {
         userAccountEntity: UserAccount
     ): Transaction =
         Transaction(
-            amount = dto.amount,
+            amount = dto.amount.money(),
             description = dto.description,
             date = dto.date,
             category = categoryEntity,

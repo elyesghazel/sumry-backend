@@ -13,11 +13,14 @@ import ch.sumry.core.module.user.repo.UserRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.security.Principal
 import java.time.YearMonth
 import java.time.ZoneId
 import java.util.*
-import kotlin.math.abs
+import ch.sumry.core.types.Money
+import ch.sumry.core.types.money
 
 @Service
 class BudgetService(
@@ -67,12 +70,12 @@ class BudgetService(
                 budget.category?.id!!, // categoryId has to be existent
                 startOfMonth,
                 endOfMonth
-            ) ?: 0.0
+            ) ?: Money.ZERO
 
-            val spentAmount = abs(spentRaw)
+            val spentAmount = spentRaw.abs().money()
 
-            val percentage = if (budget.maxAmount > 0) {
-                (spentAmount / budget.maxAmount) * 100
+            val percentage = if (budget.maxAmount.signum() > 0) {
+                spentAmount.divide(budget.maxAmount, 6, RoundingMode.HALF_UP).toDouble() * 100
             } else {
                 100.0
             }
@@ -81,7 +84,7 @@ class BudgetService(
                 categoryLabel = budget?.category?.label ?: "Unknown",
                 limitAmount = budget.maxAmount,
                 spentAmount = spentAmount,
-                remaining = budget.maxAmount - spentAmount,
+                remaining = (budget.maxAmount - spentAmount).money(),
                 percentage = percentage
             )
         }
@@ -104,7 +107,7 @@ class BudgetService(
 
         // 3. Änderungen anwenden
         if (dto.limitAmount != null) {
-            budget.maxAmount = dto.limitAmount!!
+            budget.maxAmount = dto.limitAmount!!.money()
         }
 
         // 4. Speichern und zurückgeben
@@ -125,7 +128,7 @@ class BudgetService(
 
         val userRef = userRepository.getReferenceById(userId)
 
-        val budget = Budget(maxAmount = dto.maxAmount, category = category, user = userRef)
+        val budget = Budget(maxAmount = dto.maxAmount.money(), category = category, user = userRef)
         val saved = budgetRepository.save(budget)
 
         return toDto(saved)

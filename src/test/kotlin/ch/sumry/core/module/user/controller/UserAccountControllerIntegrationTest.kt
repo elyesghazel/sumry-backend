@@ -1,5 +1,7 @@
 package ch.sumry.core.module.user.controller
 
+import java.math.BigDecimal
+
 import ch.sumry.core.exception.RequestException
 import ch.sumry.core.module.user.dto.accounts.UserAccountCreateDto
 import ch.sumry.core.module.user.dto.accounts.UserAccountResponseDto
@@ -59,7 +61,7 @@ class UserAccountControllerIntegrationTest {
     @WithMockUser(username = OWNER_USER_ID_STRING, roles = ["USER"])
     fun `should get account by id and return 200 OK`() {
         val accountId = UUID.randomUUID()
-        val accountResponseDto = UserAccountResponseDto(accountId, OWNER_USER_UUID, "Test Account", 100.0)
+        val accountResponseDto = UserAccountResponseDto(accountId, OWNER_USER_UUID, "Test Account", BigDecimal("100.00"))
 
         every {
             userAccountService.findById(
@@ -85,8 +87,8 @@ class UserAccountControllerIntegrationTest {
     @WithMockUser(username = OWNER_USER_ID_STRING, roles = ["USER"])
     fun `should create a new account and return 201 Created`() {
         val newAccountId = UUID.randomUUID()
-        val accountCreateDto = UserAccountCreateDto(accountName = "New Savings", currentBalance = 500.0)
-        val expectedResponseDto = UserAccountResponseDto(newAccountId, OWNER_USER_UUID, "New Savings", 500.0)
+        val accountCreateDto = UserAccountCreateDto(accountName = "New Savings", currentBalance = BigDecimal("500.00"))
+        val expectedResponseDto = UserAccountResponseDto(newAccountId, OWNER_USER_UUID, "New Savings", BigDecimal("500.00"))
 
         every {
             userAccountService.create(
@@ -117,8 +119,8 @@ class UserAccountControllerIntegrationTest {
     @WithMockUser(username = OWNER_USER_ID_STRING, roles = ["USER"])
     fun `should update account balance and return 200 OK`() {
         val accountId = UUID.randomUUID()
-        val updateDto = UserAccountUpdateDto(currentBalance = 150.0)
-        val expectedResponseDto = UserAccountResponseDto(accountId, OWNER_USER_UUID, "Test Account", 150.0)
+        val updateDto = UserAccountUpdateDto(currentBalance = BigDecimal("150.00"))
+        val expectedResponseDto = UserAccountResponseDto(accountId, OWNER_USER_UUID, "Test Account", BigDecimal("150.00"))
 
         every {
             userAccountService.updateBalance(
@@ -207,7 +209,7 @@ class UserAccountControllerIntegrationTest {
     @Test
     @WithMockUser(username = OWNER_USER_ID_STRING, roles = ["USER"])
     fun `should return 400 Bad Request on invalid create DTO`() {
-        val invalidDto = UserAccountCreateDto(accountName = "", currentBalance = 50.0)
+        val invalidDto = UserAccountCreateDto(accountName = "", currentBalance = BigDecimal("50.00"))
 
         mockMvc.perform(
             post("/api/users/accounts")
@@ -257,7 +259,7 @@ class UserAccountControllerIntegrationTest {
     @WithMockUser(username = MALICIOUS_USER_ID_STRING, roles = ["USER"])
     fun `should return 403 Forbidden when updating a balance the principal does not own`() {
         val accountId = UUID.randomUUID()
-        val updateDto = UserAccountUpdateDto(currentBalance = 500.0)
+        val updateDto = UserAccountUpdateDto(currentBalance = BigDecimal("500.00"))
 
         every {
             userAccountService.updateBalance(

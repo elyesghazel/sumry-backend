@@ -1,12 +1,14 @@
 package ch.sumry.core.module.transaction.dto
 
+import java.math.BigDecimal
+
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Positive
 import java.util.*
 
 data class TransferCreateDTO(
     @field:Positive(message = "Amount must be greater than zero")
-    val amount: Double,
+    val amount: BigDecimal,
 
     val description: String? = null,
 

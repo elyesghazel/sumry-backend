@@ -2,7 +2,9 @@ package ch.sumry.core.module.budget.model
 
 import ch.sumry.core.module.category.model.Category
 import ch.sumry.core.module.user.model.User
+import ch.sumry.core.types.Money
 import jakarta.persistence.*
+import java.math.BigDecimal
 import java.util.*
 
 @Entity
@@ -12,7 +14,8 @@ class Budget(
     @GeneratedValue
     val id: UUID? = null,
 
-    var maxAmount: Double = 0.0,
+    @Column(precision = 14, scale = 2, nullable = false)
+    var maxAmount: BigDecimal = Money.ZERO,
 
     @ManyToOne
     @JoinColumn(name = "category_id")
@@ -23,7 +26,7 @@ class Budget(
     var user: User? = null
 
 ) {
-    constructor(maxAmount: Double, category: Category, user: User) : this(
+    constructor(maxAmount: BigDecimal, category: Category, user: User) : this(
         null,
         maxAmount,
         category,

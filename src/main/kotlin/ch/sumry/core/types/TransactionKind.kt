@@ -1,5 +1,7 @@
 package ch.sumry.core.types
 
+import java.math.BigDecimal
+
 /**
  * What a transaction does to the balance of the account it belongs to.
  *
@@ -17,8 +19,8 @@ enum class TransactionKind {
         get() = this == TRANSFER_IN || this == TRANSFER_OUT
 
     /** The signed effect a positive [amount] of this kind has on the account balance. */
-    fun signedEffect(amount: Double): Double =
-        if (this == INCOME || this == TRANSFER_IN) amount else -amount
+    fun signedEffect(amount: BigDecimal): BigDecimal =
+        if (this == INCOME || this == TRANSFER_IN) amount else amount.negate()
 
     companion object {
         fun of(categoryType: CategoryType): TransactionKind =

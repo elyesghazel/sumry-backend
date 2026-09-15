@@ -4,6 +4,7 @@ import ch.sumry.core.module.category.model.Category
 import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.types.TransactionKind
 import jakarta.persistence.*
+import java.math.BigDecimal
 import java.util.*
 
 @Entity
@@ -14,11 +15,14 @@ class Transaction (
     @GeneratedValue
     val id: UUID? = null,
 
-    var amount: Double? = null,
+    @Column(precision = 14, scale = 2)
+    var amount: BigDecimal? = null,
     var description: String? = null,
 
-    var balanceBefore: Double? = null,
-    var balanceAfter: Double? = null,
+    @Column(precision = 14, scale = 2)
+    var balanceBefore: BigDecimal? = null,
+    @Column(precision = 14, scale = 2)
+    var balanceAfter: BigDecimal? = null,
 
     // null for transfer legs, which are categorised by their kind instead
     @ManyToOne
@@ -40,10 +44,10 @@ class Transaction (
 
     ) {
     constructor(
-        amount: Double,
+        amount: BigDecimal,
         description: String?,
-        balanceBefore: Double?,
-        balanceAfter: Double?,
+        balanceBefore: BigDecimal?,
+        balanceAfter: BigDecimal?,
         category: Category,
         date: Date,
         userAccount: UserAccount

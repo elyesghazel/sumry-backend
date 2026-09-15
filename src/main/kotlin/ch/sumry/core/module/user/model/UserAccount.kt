@@ -2,6 +2,7 @@ package ch.sumry.core.module.user.model
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.*
+import java.math.BigDecimal
 import java.util.*
 
 
@@ -13,7 +14,8 @@ class UserAccount (
     val id: UUID? = null,
 
     var accountName: String? = null,
-    var currentBalance: Double? = null,
+    @Column(precision = 14, scale = 2)
+    var currentBalance: BigDecimal? = null,
 
 
     // The owner is carried as a plain id on the response DTO; serialising the whole
@@ -26,7 +28,7 @@ class UserAccount (
     var version: Long? = null
 
 ) {
-    constructor(accountName: String, currentBalance: Double, user: User) : this(
+    constructor(accountName: String, currentBalance: BigDecimal, user: User) : this(
         null,
         accountName,
         currentBalance,

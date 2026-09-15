@@ -17,10 +17,15 @@ import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
 import ch.sumry.core.types.CategoryType
+import ch.sumry.core.types.Money
 import ch.sumry.core.types.TransactionKind
+import ch.sumry.core.types.money
+import ch.sumry.core.types.orZero
+import ch.sumry.core.types.sumMoney
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
 import java.security.Principal
 import java.time.YearMonth
 import java.time.ZoneId
@@ -50,16 +55,16 @@ class TransactionService(
     }
 
     /** Applies a transaction's effect to the account balance and returns (before, after). */
-    private fun applyEffect(account: UserAccount, kind: TransactionKind, amount: Double): Pair<Double, Double> {
-        val before = account.currentBalance ?: 0.0
-        val after = before + kind.signedEffect(amount)
+    private fun applyEffect(account: UserAccount, kind: TransactionKind, amount: BigDecimal): Pair<BigDecimal, BigDecimal> {
+        val before = account.currentBalance.orZero()
+        val after = (before + kind.signedEffect(amount)).money()
         account.currentBalance = after
         return before to after
     }
 
     /** Undoes a transaction's effect on the account balance. */
-    private fun revertEffect(account: UserAccount, kind: TransactionKind, amount: Double) {
-        account.currentBalance = (account.currentBalance ?: 0.0) - kind.signedEffect(amount)
+    private fun revertEffect(account: UserAccount, kind: TransactionKind, amount: BigDecimal) {
+        account.currentBalance = (account.currentBalance.orZero() - kind.signedEffect(amount)).money()
     }
 
     private fun parseUuid(value: String, field: String): UUID =
@@ -116,7 +121,7 @@ class TransactionService(
         val (before, after) = applyEffect(
             userAccountEntity,
             transaction.effectiveKind(),
-            transaction.amount ?: 0.0
+            transaction.amount.orZero()
         )
         transaction.balanceBefore = before
         transaction.balanceAfter = after
@@ -150,7 +155,7 @@ class TransactionService(
         }
 
         val account = transaction.userAccount!!
-        revertEffect(account, transaction.effectiveKind(), transaction.amount ?: 0.0)
+        revertEffect(account, transaction.effectiveKind(), transaction.amount.orZero())
 
         userAccountRepository.save(account)
         transactionRepository.delete(transaction)
@@ -186,13 +191,13 @@ class TransactionService(
         }
 
         // 4. Revert the old effect from the old account
-        revertEffect(oldAccount, transaction.effectiveKind(), transaction.amount ?: 0.0)
+        revertEffect(oldAccount, transaction.effectiveKind(), transaction.amount.orZero())
         userAccountRepository.save(oldAccount)
 
         // 5. Apply the requested changes
         if (dto.description != null) transaction.description = dto.description
         if (dto.date != null) transaction.date = dto.date
-        if (dto.amount != null) transaction.amount = dto.amount
+        if (dto.amount != null) transaction.amount = dto.amount.money()
 
         if (dto.categoryLabel != null) {
             val newCategory = categoryRepository.findByLabelAndUser_IdAndIsActiveTrue(dto.categoryLabel, userId)
@@ -209,7 +214,7 @@ class TransactionService(
         val (before, after) = applyEffect(
             targetAccount,
             transaction.effectiveKind(),
-            transaction.amount ?: 0.0
+            transaction.amount.orZero()
         )
         transaction.balanceBefore = before
         transaction.balanceAfter = after
@@ -236,11 +241,12 @@ class TransactionService(
         val to = ownedAccount(toId, userId)
 
         val groupId = UUID.randomUUID()
-        writeTransferLegs(groupId, from, to, dto.amount, dto.description, dto.date)
+        val amount = dto.amount.money()
+        writeTransferLegs(groupId, from, to, amount, dto.description, dto.date)
 
         return TransferResponseDTO(
             transferGroupId = groupId,
-            amount = dto.amount,
+            amount = amount,
             description = dto.description,
             date = dto.date,
             fromAccountId = from.id,
@@ -257,12 +263,12 @@ class TransactionService(
         val inLeg = legs.first { it.effectiveKind() == TransactionKind.TRANSFER_IN }
 
         // Revert both legs before recomputing.
-        revertEffect(outLeg.userAccount!!, TransactionKind.TRANSFER_OUT, outLeg.amount ?: 0.0)
-        revertEffect(inLeg.userAccount!!, TransactionKind.TRANSFER_IN, inLeg.amount ?: 0.0)
+        revertEffect(outLeg.userAccount!!, TransactionKind.TRANSFER_OUT, outLeg.amount.orZero())
+        revertEffect(inLeg.userAccount!!, TransactionKind.TRANSFER_IN, inLeg.amount.orZero())
         userAccountRepository.save(outLeg.userAccount!!)
         userAccountRepository.save(inLeg.userAccount!!)
 
-        val amount = dto.amount ?: outLeg.amount ?: 0.0
+        val amount = dto.amount?.money() ?: outLeg.amount.orZero()
         val description = dto.description ?: outLeg.description
         val date = dto.date ?: outLeg.date ?: Date()
 
@@ -297,7 +303,7 @@ class TransactionService(
 
         legs.forEach { leg ->
             val account = leg.userAccount!!
-            revertEffect(account, leg.effectiveKind(), leg.amount ?: 0.0)
+            revertEffect(account, leg.effectiveKind(), leg.amount.orZero())
             userAccountRepository.save(account)
         }
         transactionRepository.deleteAll(legs)
@@ -319,7 +325,7 @@ class TransactionService(
         groupId: UUID,
         from: UserAccount,
         to: UserAccount,
-        amount: Double,
+        amount: BigDecimal,
         description: String?,
         date: Date,
     ) {
@@ -365,21 +371,20 @@ class TransactionService(
      * account already matches and there is nothing to book.
      */
     @Transactional
-    fun reconcile(accountId: UUID, newBalance: Double, note: String?, principal: Principal): TransactionResponseDTO? {
+    fun reconcile(accountId: UUID, newBalance: BigDecimal, note: String?, principal: Principal): TransactionResponseDTO? {
         val userId = UUID.fromString(principal.name)
         val account = ownedAccount(accountId, userId)
 
-        val current = account.currentBalance ?: 0.0
-        val delta = newBalance - current
+        val current = account.currentBalance.orZero()
+        val delta = (newBalance.money() - current).money()
 
-        // Anything under half a cent is rounding, not a real difference.
-        if (kotlin.math.abs(delta) < 0.005) return null
+        if (Money.isZero(delta)) return null
 
         val category = adjustmentCategory(userId)
-        val kind = if (delta > 0) TransactionKind.INCOME else TransactionKind.EXPENSE
+        val kind = if (delta.signum() > 0) TransactionKind.INCOME else TransactionKind.EXPENSE
 
         val transaction = Transaction(
-            amount = kotlin.math.abs(delta),
+            amount = delta.abs(),
             description = note?.takeIf { it.isNotBlank() } ?: "Abgleich",
             category = category,
             kind = kind,
@@ -387,7 +392,7 @@ class TransactionService(
             userAccount = account,
         )
 
-        val (before, after) = applyEffect(account, kind, transaction.amount ?: 0.0)
+        val (before, after) = applyEffect(account, kind, transaction.amount.orZero())
         transaction.balanceBefore = before
         transaction.balanceAfter = after
 
@@ -439,11 +444,13 @@ class TransactionService(
         // Transfers move money between the user's own accounts — they are neither income nor expense.
         val income = monthlyTransactions
             .filter { it.effectiveKind() == TransactionKind.INCOME }
-            .sumOf { it.amount ?: 0.0 }
+            .map { it.amount }
+            .sumMoney()
 
         val expenses = monthlyTransactions
             .filter { it.effectiveKind() == TransactionKind.EXPENSE }
-            .sumOf { Math.abs(it.amount ?: 0.0) }
+            .map { it.amount?.abs() }
+            .sumMoney()
 
         return CashflowDTO(
             income = income,

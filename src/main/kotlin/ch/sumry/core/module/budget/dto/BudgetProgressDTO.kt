@@ -1,9 +1,11 @@
 package ch.sumry.core.module.budget.dto
 
+import java.math.BigDecimal
+
 data class BudgetProgressDTO(
     val categoryLabel: String,
-    val limitAmount: Double,
-    val spentAmount: Double,
-    val remaining: Double,
+    val limitAmount: BigDecimal,
+    val spentAmount: BigDecimal,
+    val remaining: BigDecimal,
     val percentage: Double
 )

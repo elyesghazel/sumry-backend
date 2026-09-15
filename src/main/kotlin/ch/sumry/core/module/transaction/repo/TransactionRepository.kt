@@ -1,5 +1,7 @@
 package ch.sumry.core.module.transaction.repo
 
+import java.math.BigDecimal
+
 import ch.sumry.core.module.transaction.model.Transaction
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
@@ -28,5 +30,5 @@ interface TransactionRepository: JpaRepository<Transaction, UUID> {
         categoryId: UUID,
         startDate: Date,
         endDate: Date
-    ): Double?
+    ): BigDecimal?
 }
