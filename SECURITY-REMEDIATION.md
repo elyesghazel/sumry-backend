@@ -46,13 +46,14 @@ Verified by reading every mutating path, not by sampling:
 |---|---|---|
 | F1 | Password hash returned by the API | **Fixed** — `94e8ee2`, deployed and verified 2026-08-23 |
 | F2 | Open registration | **Fixed** — `97b3778`, deployed and verified 2026-08-23 |
-| F3 | No login rate limiting | Open |
-| F4 | 30-day tokens, no revocation | Open |
-| F5 | Container runs as root | Open |
-| F6 | `ddl-auto=update` in prod | Open |
-| F7 | Cleanups | Open |
+| F3 | No login rate limiting | **Fixed** — `0384220`, Redis counters per address (30/15 min) and per email (10/15 min); the limiter fails open |
+| F4 | 30-day tokens, no revocation | **Fixed** — `0384220`, `tokenVersion` claim checked per request, `jti` denylist for single sign-out, password change and `logout-all` bump the version; fails closed |
+| F5 | Container runs as root | **Fixed** — `9f77612` |
+| F6 | `ddl-auto=update` in prod | **Fixed** — `02f2ec6`, Flyway baseline + `validate` |
+| F7 | Cleanups | **Fixed** — `1754a20` (items 1, 2, 4, 5, 6, 7); item 3 changed: Redis is now used for F3/F4 and stays, Spring Shell was dropped |
 
-F3–F7 remain. Start at F3.
+All findings closed 2026-09-15. The Traefik rate-limit suggested under F3 was not added; the
+application limiter covers it and keys on the real client address behind the proxy.
 
 ---
 
