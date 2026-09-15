@@ -36,6 +36,10 @@ WORKDIR /app
 # Jar kopieren
 COPY --from=build /app/build/libs/*.jar app.jar
 
+# The API needs nothing root can do; a compromise of the JVM should not own the container.
+RUN addgroup -S app && adduser -S -G app app
+USER app
+
 EXPOSE 48090
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
