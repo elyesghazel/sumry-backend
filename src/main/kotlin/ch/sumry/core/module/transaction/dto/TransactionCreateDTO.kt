@@ -11,7 +11,8 @@ data class TransactionCreateDTO(
 
     val description: String?,
 
-    val categoryLabel: String,
+    /** Optional: when absent the category rules decide, and the request fails if none matches. */
+    val categoryLabel: String? = null,
 
     val date: Date,
 

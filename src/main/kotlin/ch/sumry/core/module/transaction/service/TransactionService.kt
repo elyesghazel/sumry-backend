@@ -16,6 +16,7 @@ import ch.sumry.core.module.transaction.mapper.TransactionMapper
 import ch.sumry.core.module.transaction.model.Transaction
 import ch.sumry.core.module.transaction.repo.TransactionRepository
 import ch.sumry.core.module.transaction.repo.TransactionSearch
+import ch.sumry.core.module.rule.service.RuleService
 import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
@@ -44,6 +45,7 @@ class TransactionService(
     private val userRepository: UserRepository,
     private val categoryRepository: CategoryRepository,
     private val search: TransactionSearch,
+    private val rules: RuleService,
 ) {
 
     // ---------------------------------------------------------------- helpers
@@ -125,9 +127,15 @@ class TransactionService(
         // 1. Load User Account and check Ownership
         val userAccountEntity = ownedAccount(parseUuid(dto.userAccountId, "userAccountId"), authenticatedUserId)
 
-        // 2. Load Category Entity
-        val categoryEntity = categoryRepository.findByLabelAndUser_Id(dto.categoryLabel, authenticatedUserId).orElseThrow {
-            RequestException(HttpStatus.NOT_FOUND, "Category not found")
+        // 2. The category: named explicitly, or chosen by the rules from the note.
+        val label = dto.categoryLabel?.trim()?.takeIf { it.isNotEmpty() }
+        val categoryEntity = if (label != null) {
+            categoryRepository.findByLabelAndUser_Id(label, authenticatedUserId).orElseThrow {
+                RequestException(HttpStatus.NOT_FOUND, "Category not found")
+            }
+        } else {
+            rules.categorise(authenticatedUserId, dto.description, userAccountEntity.id)
+                ?: throw RequestException(HttpStatus.BAD_REQUEST, "No category given and no rule matches '${dto.description ?: ""}'")
         }
 
         // 3. Map DTO to Entity using the loaded objects
