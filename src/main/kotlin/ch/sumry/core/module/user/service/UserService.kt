@@ -6,6 +6,10 @@ import ch.sumry.core.module.user.mapper.UserMapper
 import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.repo.UserRepository
 import ch.sumry.core.security.JwtService
+import ch.sumry.core.security.LoginRateLimiter
+import ch.sumry.core.security.TokenClaims
+import ch.sumry.core.security.TokenRevocationService
+import jakarta.servlet.http.HttpServletRequest
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -16,6 +20,8 @@ import java.util.*
 class UserService(
     private val repo: UserRepository,
     private val jwtService: JwtService,
+    private val rateLimiter: LoginRateLimiter,
+    private val revocation: TokenRevocationService,
     /**
      * Self-registration is off by default. The API is reachable from the internet, so an
      * open register endpoint lets anyone create accounts on a personal instance.
@@ -85,7 +91,7 @@ class UserService(
      * Knowing the current password is required even though the caller already holds a valid
      * token, so a leaked or borrowed token cannot be used to lock the real owner out.
      */
-    fun changePassword(dto: PasswordChangeDto, principal: Principal) {
+    fun changePassword(dto: PasswordChangeDto, principal: Principal): LoginResponseDto {
         val userId = UUID.fromString(principal.name)
 
         val user = repo.findById(userId).orElseThrow {
@@ -101,10 +107,28 @@ class UserService(
         }
 
         user.encodePassword(dto.newPassword)
+        // Every other session dies with the old password; the caller gets a token that fits
+        // the new version so it does not have to sign in again.
+        user.tokenVersion += 1
         repo.save(user)
+        revocation.revokeAll(userId)
+        return issueToken(user)
     }
 
-    fun login(dto: LoginDto): LoginResponseDto {
+    /** Revokes exactly the token this request was made with. */
+    fun logout(claims: TokenClaims?) {
+        if (claims != null) revocation.revoke(claims)
+    }
+
+    /** Revokes every token the user holds, on every device. */
+    fun logoutEverywhere(principal: Principal) {
+        revocation.revokeAll(UUID.fromString(principal.name))
+    }
+
+    fun login(dto: LoginDto, request: HttpServletRequest): LoginResponseDto {
+        rateLimiter.retryAfterSeconds(request, dto.email)?.let { retryAfter ->
+            throw RequestException(HttpStatus.TOO_MANY_REQUESTS, "Too many sign-in attempts. Try again in $retryAfter seconds.")
+        }
         val user = repo.findByEmail(dto.email)
             ?: throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
 
@@ -112,15 +136,16 @@ class UserService(
         if (!passwordEncoder.matches(dto.password, user.password)) {
             throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
         }
+        rateLimiter.reset(dto.email)
+        return issueToken(user)
+    }
 
+    private fun issueToken(user: User): LoginResponseDto {
         val token = jwtService.generateToken(
             subject = user.id.toString(),
+            tokenVersion = user.tokenVersion,
             extraClaims = mapOf("email" to user.email, "username" to user.username, "role" to user.role.name)
         )
-
-        return LoginResponseDto(
-            token = token,
-            email = user.email
-        )
+        return LoginResponseDto(token = token, email = user.email)
     }
 }

@@ -2,6 +2,7 @@ package ch.sumry.core.config
 
 import ch.sumry.core.security.JwtAuthenticationFilter
 import ch.sumry.core.security.JwtService
+import ch.sumry.core.security.TokenRevocationService
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -18,7 +19,8 @@ import org.springframework.http.HttpStatus
 @Configuration
 @EnableMethodSecurity // ⬅️ MUST be enabled for @PreAuthorize to work
 class SecurityConfig(
-    private val jwtService: JwtService
+    private val jwtService: JwtService,
+    private val revocation: TokenRevocationService,
 ) {
 
     @Bean
@@ -53,6 +55,6 @@ class SecurityConfig(
 
     @Bean
     fun authFilter(): JwtAuthenticationFilter {
-        return JwtAuthenticationFilter(jwtService)
+        return JwtAuthenticationFilter(jwtService, revocation)
     }
 }

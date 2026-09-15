@@ -2,6 +2,9 @@ package ch.sumry.core.module.user.controller
 
 import ch.sumry.core.module.user.dto.auth.*
 import ch.sumry.core.module.user.service.UserService
+import ch.sumry.core.security.JwtAuthenticationFilter
+import ch.sumry.core.security.TokenClaims
+import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -52,12 +55,23 @@ class UserController(private val service: UserService) {
     fun changePassword(
         @Valid @RequestBody dto: PasswordChangeDto,
         principal: Principal
-    ): ResponseEntity<Unit> {
-        service.changePassword(dto, principal)
+    ): ResponseEntity<LoginResponseDto> = ResponseEntity.ok(service.changePassword(dto, principal))
+
+    /** Signs out this device: the token used for the call stops working immediately. */
+    @PostMapping("/logout")
+    fun logout(request: HttpServletRequest): ResponseEntity<Unit> {
+        service.logout(request.getAttribute(JwtAuthenticationFilter.CLAIMS_ATTRIBUTE) as? TokenClaims)
+        return ResponseEntity.noContent().build()
+    }
+
+    /** Signs out every device at once. */
+    @PostMapping("/logout-all")
+    fun logoutEverywhere(principal: Principal): ResponseEntity<Unit> {
+        service.logoutEverywhere(principal)
         return ResponseEntity.noContent().build()
     }
 
     @PostMapping("/login")
-    fun login(@Valid @RequestBody dto: LoginDto): LoginResponseDto =
-        service.login(dto)
+    fun login(@Valid @RequestBody dto: LoginDto, request: HttpServletRequest): LoginResponseDto =
+        service.login(dto, request)
 }

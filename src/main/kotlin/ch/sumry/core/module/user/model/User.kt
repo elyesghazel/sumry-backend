@@ -29,7 +29,14 @@ class User(
     var preferences: UserPreferences? = null,
 
     @Enumerated(EnumType.STRING)
-    var role: Role = Role.USER
+    var role: Role = Role.USER,
+
+    /**
+     * Carried in every token as the `tv` claim and compared on each request. Incrementing
+     * it is how "sign out everywhere" and a password change revoke tokens already issued.
+     */
+    @Column(name = "token_version", nullable = false)
+    var tokenVersion: Int = 0,
 ) {
 
     constructor() : this(UUID.randomUUID(), "", "", "", mutableListOf(), null)

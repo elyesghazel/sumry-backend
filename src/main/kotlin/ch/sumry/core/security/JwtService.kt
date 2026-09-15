@@ -8,8 +8,19 @@ import org.springframework.stereotype.Service
 import java.util.*
 import javax.crypto.SecretKey
 
+/** Everything the filter needs from a token once the signature has checked out. */
+data class TokenClaims(
+    val subject: String,
+    val jti: String,
+    val tokenVersion: Int,
+    val role: String?,
+    val expiresAt: Date,
+)
+
 @Service
 class JwtService(private val jwtProperties: JwtProperties) {
+
+    private val key: SecretKey
 
     init {
         // Fail fast at startup rather than on the first login with a missing or too-short key.
@@ -21,63 +32,44 @@ class JwtService(private val jwtProperties: JwtProperties) {
         require(decoded.size >= 32) {
             "jwt.secret (JWT_SECRET) must decode to at least 32 bytes for HS256; got ${decoded.size}"
         }
+        key = Keys.hmacShaKeyFor(decoded)
     }
 
-    fun generateToken(subject: String, extraClaims: Map<String, Any> = emptyMap()): String {
+    fun generateToken(subject: String, tokenVersion: Int, extraClaims: Map<String, Any> = emptyMap()): String {
         val now = Date()
         val expiryDate = Date(now.time + jwtProperties.expirationMs)
-
-
         return Jwts.builder()
-            .setClaims(extraClaims)
-            .setSubject(subject)
-            .setIssuedAt(now)
-            .setExpiration(expiryDate)
-            .signWith(key())
+            .claims(extraClaims)
+            .subject(subject)
+            .id(UUID.randomUUID().toString())
+            .claim(CLAIM_TOKEN_VERSION, tokenVersion)
+            .issuedAt(now)
+            .expiration(expiryDate)
+            .signWith(key)
             .compact()
     }
 
-    private fun key(): SecretKey {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtProperties.secret))
-    }
-
-    fun validateToken(token: String?): Boolean {
-        if (token == null) return false
+    /**
+     * Parses and verifies a token. Returns null for anything that should not be trusted:
+     * bad signature, expired, malformed, or missing the claims this service always writes.
+     */
+    fun parse(token: String?): TokenClaims? {
+        if (token.isNullOrBlank()) return null
         return try {
-            // FIX: Use the new parserBuilder() API
-            val claims: Claims = Jwts.parserBuilder()
-                .setSigningKey(key())
-                .build()
-                .parseClaimsJws(token)
-                .body
-
-            !claims.expiration.before(Date())
+            val claims: Claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).payload
+            TokenClaims(
+                subject = claims.subject ?: return null,
+                jti = claims.id ?: return null,
+                tokenVersion = claims.get(CLAIM_TOKEN_VERSION, Integer::class.java)?.toInt() ?: return null,
+                role = claims["role"] as? String,
+                expiresAt = claims.expiration ?: return null,
+            )
         } catch (ex: Exception) {
-            // Will catch expired, malformed, etc.
-            false
+            null
         }
     }
 
-    fun getMailFromToken(token: String): String {
-        // FIX: Use the new parserBuilder() API
-        // This will throw an exception if the token is invalid,
-        // which is expected (it should be called after validateToken)
-        val claims: Claims = Jwts.parserBuilder()
-            .setSigningKey(key())
-            .build()
-            .parseClaimsJws(token)
-            .body
-        return claims.subject
-    }
-
-    fun extractAllClaims(token: String): Map<String, Any> {
-        val claims = Jwts.parserBuilder()
-            .setSigningKey(key()) // Use the key that signed the token
-            .build()
-            .parseClaimsJws(token) // Parses, validates the signature, and checks expiration
-            .body
-
-        // Convert the Claims object (a map-like structure) to a standard Kotlin Map
-        return claims.toMap()
+    companion object {
+        const val CLAIM_TOKEN_VERSION = "tv"
     }
 }
