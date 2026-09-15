@@ -5,21 +5,26 @@ import ch.sumry.core.module.user.dto.accounts.UserAccountResponseDto
 import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.types.money
+import java.math.BigDecimal
 
 object UserAccountMapper {
-    fun toDto(entity: UserAccount): UserAccountResponseDto =
+    fun toDto(entity: UserAccount, baseCurrency: String = entity.currency, baseBalance: BigDecimal? = entity.currentBalance): UserAccountResponseDto =
         UserAccountResponseDto(
             id = entity.id,
             userId = entity.user?.id,
             accountName = entity.accountName,
-            currentBalance = entity.currentBalance
+            currentBalance = entity.currentBalance,
+            currency = entity.currency,
+            baseBalance = baseBalance,
+            baseCurrency = baseCurrency,
         )
 
     fun fromDtoToEntity(dto: UserAccountCreateDto, userEntity: User): UserAccount =
         UserAccount(
             accountName = dto.accountName,
             currentBalance = dto.currentBalance.money(),
-            user = userEntity
+            user = userEntity,
+            currency = dto.currency.trim().uppercase().ifEmpty { "CHF" },
         )
 
     fun toDtoList(entities: List<UserAccount>): List<UserAccountResponseDto> =

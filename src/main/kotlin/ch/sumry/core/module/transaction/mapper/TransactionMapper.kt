@@ -24,6 +24,9 @@ object TransactionMapper {
             userId = entity.userAccount?.user?.id,
             balanceBefore = entity.balanceBefore,
             balanceAfter = entity.balanceAfter,
+            currency = entity.currency,
+            fxRate = entity.fxRate,
+            baseAmount = entity.baseAmount,
         )
 
     fun toDtoList(entities: List<Transaction>): List<TransactionResponseDTO> =

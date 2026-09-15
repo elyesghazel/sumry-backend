@@ -20,7 +20,7 @@ interface TransactionRepository: JpaRepository<Transaction, UUID>, JpaSpecificat
     fun findByTransferGroupId(transferGroupId: UUID): List<Transaction>
 
     @Query("""
-    SELECT SUM(t.amount)
+    SELECT SUM(t.baseAmount)
     FROM Transaction t
     WHERE t.category.id = :categoryId
       AND t.userAccount.user.id = :userId

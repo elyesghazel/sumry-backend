@@ -9,5 +9,5 @@ data class UserAccountCreateDto(
     @field:NotBlank(message = "Account name cannot be blank")
     val accountName: String,
     val currentBalance: BigDecimal = Money.ZERO,
-
+    val currency: String = "CHF",
 )

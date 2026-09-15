@@ -17,6 +17,8 @@ import ch.sumry.core.module.transaction.model.Transaction
 import ch.sumry.core.module.transaction.repo.TransactionRepository
 import ch.sumry.core.module.transaction.repo.TransactionSearch
 import ch.sumry.core.module.rule.service.RuleService
+import ch.sumry.core.module.fx.FxService
+import ch.sumry.core.module.user.repo.UserPreferencesRepository
 import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
@@ -46,6 +48,8 @@ class TransactionService(
     private val categoryRepository: CategoryRepository,
     private val search: TransactionSearch,
     private val rules: RuleService,
+    private val fx: FxService,
+    private val preferences: UserPreferencesRepository,
 ) {
 
     // ---------------------------------------------------------------- helpers
@@ -72,6 +76,23 @@ class TransactionService(
     /** Undoes a transaction's effect on the account balance. */
     private fun revertEffect(account: UserAccount, kind: TransactionKind, amount: BigDecimal) {
         account.currentBalance = (account.currentBalance.orZero() - kind.signedEffect(amount)).money()
+    }
+
+    /** The currency every report adds up in. */
+    fun baseCurrency(userId: UUID): String =
+        preferences.findByUser_Id(userId).map { it.preferredCurrency }.orElse("CHF").uppercase()
+
+    /**
+     * Stamps a transaction with its account's currency, the rate to the base currency at
+     * booking time, and the resulting base amount. Called on every write so history keeps
+     * the value it had, whatever the rate does afterwards.
+     */
+    private fun price(transaction: Transaction, account: UserAccount, userId: UUID) {
+        val currency = account.currency.uppercase()
+        val rate = fx.rate(currency, baseCurrency(userId))
+        transaction.currency = currency
+        transaction.fxRate = rate
+        transaction.baseAmount = transaction.amount.orZero().multiply(rate).money()
     }
 
     private fun parseUuid(value: String, field: String): UUID =
@@ -153,6 +174,7 @@ class TransactionService(
         )
         transaction.balanceBefore = before
         transaction.balanceAfter = after
+        price(transaction, userAccountEntity, authenticatedUserId)
 
         // 5. Speichern
         userAccountRepository.save(userAccountEntity)
@@ -246,6 +268,7 @@ class TransactionService(
         )
         transaction.balanceBefore = before
         transaction.balanceAfter = after
+        price(transaction, targetAccount, userId)
 
         userAccountRepository.save(targetAccount)
         val savedTransaction = transactionRepository.save(transaction)
@@ -270,7 +293,8 @@ class TransactionService(
 
         val groupId = UUID.randomUUID()
         val amount = dto.amount.money()
-        writeTransferLegs(groupId, from, to, amount, dto.description, dto.date)
+        val toAmount = arrivingAmount(amount, from, to, dto.toAmount)
+        writeTransferLegs(groupId, from, to, amount, toAmount, dto.description, dto.date, userId)
 
         return TransferResponseDTO(
             transferGroupId = groupId,
@@ -279,6 +303,7 @@ class TransactionService(
             date = dto.date,
             fromAccountId = from.id,
             toAccountId = to.id,
+            toAmount = toAmount,
         )
     }
 
@@ -312,7 +337,11 @@ class TransactionService(
         // Rewrite the pair from scratch so account changes are handled uniformly.
         transactionRepository.deleteAll(legs)
         transactionRepository.flush()
-        writeTransferLegs(groupId, from, to, amount, description, date)
+        // Keep an explicitly recorded arrival amount when nothing about the money changed.
+        val keepArrival = dto.amount == null && dto.toAmount == null &&
+            from.id == outLeg.userAccount!!.id && to.id == inLeg.userAccount!!.id
+        val toAmount = arrivingAmount(amount, from, to, dto.toAmount ?: if (keepArrival) inLeg.amount else null)
+        writeTransferLegs(groupId, from, to, amount, toAmount, description, date, userId)
 
         return TransferResponseDTO(
             transferGroupId = groupId,
@@ -321,6 +350,7 @@ class TransactionService(
             date = date,
             fromAccountId = from.id,
             toAccountId = to.id,
+            toAmount = toAmount,
         )
     }
 
@@ -349,13 +379,24 @@ class TransactionService(
         return legs
     }
 
+    /** What arrives on the destination: the same amount, or a conversion when the currencies differ. */
+    private fun arrivingAmount(amount: BigDecimal, from: UserAccount, to: UserAccount, explicit: BigDecimal?): BigDecimal {
+        explicit?.let {
+            if (it.signum() <= 0) throw RequestException(HttpStatus.BAD_REQUEST, "toAmount must be positive")
+            return it.money()
+        }
+        return if (from.currency.equals(to.currency, ignoreCase = true)) amount else fx.convert(amount, from.currency, to.currency)
+    }
+
     private fun writeTransferLegs(
         groupId: UUID,
         from: UserAccount,
         to: UserAccount,
         amount: BigDecimal,
+        toAmount: BigDecimal,
         description: String?,
         date: Date,
+        userId: UUID,
     ) {
         val outLeg = Transaction(
             amount = amount,
@@ -369,9 +410,10 @@ class TransactionService(
         val (outBefore, outAfter) = applyEffect(from, TransactionKind.TRANSFER_OUT, amount)
         outLeg.balanceBefore = outBefore
         outLeg.balanceAfter = outAfter
+        price(outLeg, from, userId)
 
         val inLeg = Transaction(
-            amount = amount,
+            amount = toAmount,
             description = description,
             category = null,
             kind = TransactionKind.TRANSFER_IN,
@@ -379,9 +421,10 @@ class TransactionService(
             date = date,
             userAccount = to,
         )
-        val (inBefore, inAfter) = applyEffect(to, TransactionKind.TRANSFER_IN, amount)
+        val (inBefore, inAfter) = applyEffect(to, TransactionKind.TRANSFER_IN, toAmount)
         inLeg.balanceBefore = inBefore
         inLeg.balanceAfter = inAfter
+        price(inLeg, to, userId)
 
         userAccountRepository.save(from)
         userAccountRepository.save(to)
@@ -423,7 +466,7 @@ class TransactionService(
         val (before, after) = applyEffect(account, kind, transaction.amount.orZero())
         transaction.balanceBefore = before
         transaction.balanceAfter = after
-
+        price(transaction, account, userId)
         userAccountRepository.save(account)
         transactionRepository.save(transaction)
 
@@ -472,12 +515,12 @@ class TransactionService(
         // Transfers move money between the user's own accounts — they are neither income nor expense.
         val income = monthlyTransactions
             .filter { it.effectiveKind() == TransactionKind.INCOME }
-            .map { it.amount }
+            .map { it.baseAmount }
             .sumMoney()
 
         val expenses = monthlyTransactions
             .filter { it.effectiveKind() == TransactionKind.EXPENSE }
-            .map { it.amount?.abs() }
+            .map { it.baseAmount.abs() }
             .sumMoney()
 
         return CashflowDTO(

@@ -25,7 +25,14 @@ class UserAccountService(
     private val repo: UserAccountRepository,
     private val userRepository: UserRepository,
     private val transactionService: TransactionService,
+    private val fx: ch.sumry.core.module.fx.FxService,
 ) {
+
+    /** Accounts with their balances also expressed in the user's base currency. */
+    private fun withBase(accounts: List<UserAccount>, userId: UUID): List<UserAccountResponseDto> {
+        val base = transactionService.baseCurrency(userId)
+        return accounts.map { UserAccountMapper.toDto(it, base, fx.convert(it.currentBalance ?: java.math.BigDecimal.ZERO, it.currency, base)) }
+    }
 
     @PreAuthorize("hasRole('ADMIN')")
     fun getAll(): List<UserAccountResponseDto> = UserAccountMapper.toDtoList(repo.findAll())
@@ -38,12 +45,12 @@ class UserAccountService(
             throw RequestException(HttpStatus.FORBIDDEN,"Forbidden")
         }
 
-        return UserAccountMapper.toDtoList(repo.findByUserId(userId))
+        return withBase(repo.findByUserId(userId), userId)
 
     }
     fun getAllFromPrincipal(principal: Principal): List<UserAccountResponseDto> {
         val userId = UUID.fromString(principal.name)
-        return UserAccountMapper.toDtoList(repo.findByUserId(userId))
+        return withBase(repo.findByUserId(userId), userId)
     }
 
     fun findById(accountId: UUID, principal: Principal): UserAccountResponseDto {
@@ -98,6 +105,7 @@ class UserAccountService(
         }
 
         entity.accountName = dto.accountName ?: entity.accountName
+        dto.currency?.let { entity.currency = validCurrency(it) }
         entity.currentBalance = dto.currentBalance?.money() ?: entity.currentBalance
 
         val updatedEntity = repo.save(entity)
@@ -126,6 +134,12 @@ class UserAccountService(
      */
     fun reconcile(accountId: UUID, dto: AccountReconcileDto, principal: Principal): TransactionResponseDTO? =
         transactionService.reconcile(accountId, dto.newBalance, dto.note, principal)
+
+    private fun validCurrency(code: String): String {
+        val c = code.trim().uppercase()
+        if (!c.matches(Regex("[A-Z]{3}"))) throw RequestException(HttpStatus.BAD_REQUEST, "currency must be a three-letter ISO code")
+        return c
+    }
 
     fun delete(accountId: UUID, principal: Principal): Boolean {
         val entity = repo.findById(accountId).orElseThrow {

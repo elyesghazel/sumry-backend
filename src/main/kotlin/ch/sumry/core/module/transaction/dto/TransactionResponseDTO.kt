@@ -22,5 +22,8 @@ data class TransactionResponseDTO(
     val userId: UUID?,
 
     val balanceBefore: BigDecimal?,
-    val balanceAfter: BigDecimal?
+    val balanceAfter: BigDecimal?,
+    val currency: String = "CHF",
+    val fxRate: BigDecimal = BigDecimal.ONE,
+    val baseAmount: BigDecimal? = amount,
 )

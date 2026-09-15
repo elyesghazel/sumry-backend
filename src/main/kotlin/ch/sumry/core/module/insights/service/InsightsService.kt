@@ -10,7 +10,6 @@ import ch.sumry.core.module.transaction.repo.TransactionRepository
 import ch.sumry.core.types.Money
 import ch.sumry.core.types.TransactionKind
 import ch.sumry.core.types.money
-import ch.sumry.core.types.orZero
 import ch.sumry.core.types.sumMoney
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
@@ -66,7 +65,7 @@ class InsightsService(
             val tolerance = maxOf(4.0, medianGap * 0.2)
             val steadyGaps = gaps.count { abs(it - medianGap) <= tolerance }.toDouble() / gaps.size
             if (steadyGaps < 0.6) continue
-            val amounts = sorted.map { it.amount.orZero().toDouble() }
+            val amounts = sorted.map { it.baseAmount.toDouble() }
             val medianAmount = median(amounts)
             val steadyAmounts = amounts.count { abs(it - medianAmount) <= medianAmount * 0.15 + 0.5 }.toDouble() / amounts.size
             if (steadyAmounts < 0.6) continue
@@ -92,7 +91,7 @@ class InsightsService(
                 categoryColor = category?.color,
                 accountId = account?.id,
                 accountName = account?.accountName,
-                paidLast12Months = sorted.filter { localDate(it).isAfter(today.minusYears(1)) }.map { it.amount }.sumMoney(),
+                paidLast12Months = sorted.filter { localDate(it).isAfter(today.minusYears(1)) }.map { it.baseAmount }.sumMoney(),
                 planned = key in plannedNames,
             )
         }
@@ -132,14 +131,14 @@ class InsightsService(
             .flatMap { listOfNotNull(it.name, it.description) }.map { normalise(it) }.filter { it.isNotBlank() }.toSet()
 
         fun inMonth(m: YearMonth) = all.filter { YearMonth.from(localDate(it)) == m }
-        fun spent(txs: List<Transaction>) = txs.filter { it.effectiveKind() == TransactionKind.EXPENSE }.map { it.amount }.sumMoney()
+        fun spent(txs: List<Transaction>) = txs.filter { it.effectiveKind() == TransactionKind.EXPENSE }.map { it.baseAmount }.sumMoney()
         fun everyday(txs: List<Transaction>) = txs.filter {
             it.effectiveKind() == TransactionKind.EXPENSE && normalise(it.description ?: "") !in plannedNames
-        }.map { it.amount }.sumMoney()
+        }.map { it.baseAmount }.sumMoney()
 
         val thisMonth = inMonth(month).filter { !localDate(it).isAfter(today) }
         val spentSoFar = spent(thisMonth)
-        val incomeSoFar = thisMonth.filter { it.effectiveKind() == TransactionKind.INCOME }.map { it.amount }.sumMoney()
+        val incomeSoFar = thisMonth.filter { it.effectiveKind() == TransactionKind.INCOME }.map { it.baseAmount }.sumMoney()
         val daysElapsed = today.dayOfMonth
         val daysLeft = month.lengthOfMonth() - daysElapsed
 

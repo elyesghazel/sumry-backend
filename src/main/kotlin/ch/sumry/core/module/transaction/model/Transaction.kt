@@ -42,6 +42,18 @@ class Transaction (
     @ManyToOne(fetch = FetchType.LAZY)
     var userAccount: UserAccount? = null,
 
+    /** The account's currency at booking; [amount] and the balances are in it. */
+    @Column(nullable = false, length = 3)
+    var currency: String = "CHF",
+
+    /** Units of the base currency per unit of [currency] when this was booked. */
+    @Column(name = "fx_rate", precision = 14, scale = 6, nullable = false)
+    var fxRate: BigDecimal = BigDecimal.ONE,
+
+    /** [amount] in the user's base currency — what every report sums. */
+    @Column(name = "base_amount", precision = 14, scale = 2, nullable = false)
+    var baseAmount: BigDecimal = BigDecimal.ZERO,
+
     ) {
     constructor(
         amount: BigDecimal,
@@ -61,7 +73,10 @@ class Transaction (
         category.categoryType?.let { TransactionKind.of(it) },
         null,
         date,
-        userAccount
+        userAccount,
+        userAccount.currency,
+        BigDecimal.ONE,
+        amount,
     )
 
     /**

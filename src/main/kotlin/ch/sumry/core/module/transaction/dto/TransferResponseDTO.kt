@@ -11,4 +11,5 @@ data class TransferResponseDTO(
     val date: Date?,
     val fromAccountId: UUID?,
     val toAccountId: UUID?,
+    val toAmount: BigDecimal = amount,
 )

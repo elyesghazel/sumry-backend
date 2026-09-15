@@ -19,4 +19,6 @@ data class TransferCreateDTO(
     val toAccountId: String,
 
     val date: Date,
+    /** What lands on the destination when its currency differs; defaults to today's rate. */
+    val toAmount: BigDecimal? = null,
 )

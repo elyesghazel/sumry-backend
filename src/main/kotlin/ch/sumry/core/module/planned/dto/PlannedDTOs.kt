@@ -74,6 +74,7 @@ data class OccurrenceDTO(
     val categoryColor: String?,
     val accountId: UUID,
     val accountName: String,
+    val currency: String,
     val toAccountName: String?,
     val autoBook: Boolean,
     /** True when the date has passed and nothing was booked for it. */
@@ -81,7 +82,7 @@ data class OccurrenceDTO(
 )
 
 data class SafeToSpendDTO(
-    /** Balance the calculation started from: every account, or the one asked for. */
+    /** Balance the calculation started from, in the base currency: every account, or the one asked for. */
     val balance: BigDecimal,
     val accountId: UUID?,
     val today: LocalDate,

@@ -9,6 +9,7 @@ import ch.sumry.core.module.transaction.dto.TransferCreateDTO
 import ch.sumry.core.module.transaction.model.Frequency
 import ch.sumry.core.module.transaction.model.PlannedTransaction
 import ch.sumry.core.module.transaction.service.TransactionService
+import ch.sumry.core.module.fx.FxService
 import ch.sumry.core.module.user.model.UserAccount
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
@@ -36,6 +37,7 @@ class PlannedService(
     private val categories: CategoryRepository,
     private val users: UserRepository,
     private val transactions: TransactionService,
+    private val fx: FxService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -142,7 +144,9 @@ class PlannedService(
         val today = LocalDate.now()
         val owned = accounts.findByUserId(userId)
         val scoped = accountId?.let { id -> owned.firstOrNull { it.id == id } ?: throw RequestException(HttpStatus.NOT_FOUND, "Account not found") }
-        val balance = (scoped?.let { listOf(it) } ?: owned).map { it.currentBalance }.sumMoney()
+        // Everything below is in the base currency, so accounts in other currencies convert first.
+        val base = transactions.baseCurrency(userId)
+        val balance = (scoped?.let { listOf(it) } ?: owned).map { fx.convert(it.currentBalance.orZero(), it.currency, base) }.sumMoney()
 
         val plans = repo.findByUser_IdAndIsActiveTrueOrderByStartDateAsc(userId)
         val nextIncome = plans
@@ -153,9 +157,10 @@ class PlannedService(
         val reason = if (nextIncome != null) "next planned income" else "no income planned; 30 days"
 
         val upcoming = occurrences(userId, today, horizon, accountId, plans)
-        val expenses = upcoming.filter { it.kind == TransactionKind.EXPENSE }.map { it.amount }.sumMoney()
+        val inBase = { o: OccurrenceDTO -> fx.convert(o.amount, o.currency, base) }
+        val expenses = upcoming.filter { it.kind == TransactionKind.EXPENSE }.map(inBase).sumMoney()
         // Between own accounts a transfer is neutral; scoped to one account it is money leaving.
-        val transfersOut = if (scoped != null) upcoming.filter { it.kind == TransactionKind.TRANSFER_OUT }.map { it.amount }.sumMoney() else Money.ZERO
+        val transfersOut = if (scoped != null) upcoming.filter { it.kind == TransactionKind.TRANSFER_OUT }.map(inBase).sumMoney() else Money.ZERO
         val safe = (balance - expenses - transfersOut).money()
         val days = maxOf(1, ChronoUnit.DAYS.between(today, horizon).toInt())
         return SafeToSpendDTO(
@@ -198,6 +203,7 @@ class PlannedService(
                     categoryColor = p.category?.color,
                     accountId = p.userAccount!!.id!!,
                     accountName = p.userAccount!!.accountName ?: "",
+                    currency = p.userAccount!!.currency,
                     toAccountName = p.toAccount?.accountName,
                     autoBook = p.autoBook,
                     overdue = d.isBefore(today),

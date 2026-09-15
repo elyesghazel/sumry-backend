@@ -9,4 +9,8 @@ data class UserAccountResponseDto (
     val userId: UUID?,
     val accountName: String?,
     val currentBalance: BigDecimal?,
+    val currency: String = "CHF",
+    /** The balance in the user's base currency at today's rate. */
+    val baseBalance: BigDecimal? = currentBalance,
+    val baseCurrency: String = "CHF",
 )

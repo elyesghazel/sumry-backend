@@ -42,10 +42,10 @@ class TransactionSearch(private val em: EntityManager) {
         val where = predicates(userId, q, root, cb)
 
         val incomeCase = cb.selectCase<BigDecimal>()
-            .`when`(cb.equal(root.get<TransactionKind>("kind"), TransactionKind.INCOME), root.get<BigDecimal>("amount"))
+            .`when`(cb.equal(root.get<TransactionKind>("kind"), TransactionKind.INCOME), root.get<BigDecimal>("baseAmount"))
             .otherwise(BigDecimal.ZERO)
         val expenseCase = cb.selectCase<BigDecimal>()
-            .`when`(cb.equal(root.get<TransactionKind>("kind"), TransactionKind.EXPENSE), root.get<BigDecimal>("amount"))
+            .`when`(cb.equal(root.get<TransactionKind>("kind"), TransactionKind.EXPENSE), root.get<BigDecimal>("baseAmount"))
             .otherwise(BigDecimal.ZERO)
 
         query.multiselect(cb.sum(incomeCase), cb.sum(expenseCase), cb.count(root))

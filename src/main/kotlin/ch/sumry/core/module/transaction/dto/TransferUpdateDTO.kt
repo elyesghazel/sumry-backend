@@ -13,4 +13,5 @@ data class TransferUpdateDTO(
     val fromAccountId: String? = null,
     val toAccountId: String? = null,
     val date: Date? = null,
+    val toAmount: BigDecimal? = null,
 )
