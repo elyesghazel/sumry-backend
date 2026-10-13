@@ -27,7 +27,10 @@ class JwtAuthenticationFilter(
 
         if (SecurityContextHolder.getContext().authentication == null) {
             val claims = jwtService.parse(authHeader.substring(7))
-            if (claims != null && revocation.isActive(claims)) {
+            // A Shortcut token lives on a phone for a year, so it opens the Shortcut endpoints only.
+            val inScope = claims?.scope == null ||
+                (claims.scope == JwtService.SCOPE_SHORTCUT && request.requestURI.startsWith(JwtService.SHORTCUT_PATH))
+            if (claims != null && inScope && revocation.isActive(claims)) {
                 // Spring expects roles prefixed; a token without one is an ordinary user.
                 val authorities = listOf(SimpleGrantedAuthority("ROLE_${claims.role ?: "USER"}"))
                 val authToken = UsernamePasswordAuthenticationToken(claims.subject, null, authorities)

@@ -11,5 +11,7 @@ interface CategoryRepository: JpaRepository<Category, UUID> {
 
     fun findByLabelAndUser_Id(label: String, userId: UUID): Optional<Category>
 
+    fun findByUser_Id(userId: UUID): List<Category>
+
     fun findByLabelAndUser_IdAndIsActiveTrue(label: String, userId: UUID): Optional<Category>
 }

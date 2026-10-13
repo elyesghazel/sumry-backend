@@ -15,6 +15,8 @@ data class TokenClaims(
     val tokenVersion: Int,
     val role: String?,
     val expiresAt: Date,
+    /** Null for a normal session; [JwtService.SCOPE_SHORTCUT] for a token limited to /api/shortcut. */
+    val scope: String? = null,
 )
 
 @Service
@@ -35,9 +37,14 @@ class JwtService(private val jwtProperties: JwtProperties) {
         key = Keys.hmacShaKeyFor(decoded)
     }
 
-    fun generateToken(subject: String, tokenVersion: Int, extraClaims: Map<String, Any> = emptyMap()): String {
+    fun generateToken(
+        subject: String,
+        tokenVersion: Int,
+        extraClaims: Map<String, Any> = emptyMap(),
+        lifetimeMs: Long = jwtProperties.expirationMs,
+    ): String {
         val now = Date()
-        val expiryDate = Date(now.time + jwtProperties.expirationMs)
+        val expiryDate = Date(now.time + lifetimeMs)
         return Jwts.builder()
             .claims(extraClaims)
             .subject(subject)
@@ -63,6 +70,7 @@ class JwtService(private val jwtProperties: JwtProperties) {
                 tokenVersion = claims.get(CLAIM_TOKEN_VERSION, Integer::class.java)?.toInt() ?: return null,
                 role = claims["role"] as? String,
                 expiresAt = claims.expiration ?: return null,
+                scope = claims[CLAIM_SCOPE] as? String,
             )
         } catch (ex: Exception) {
             null
@@ -71,5 +79,8 @@ class JwtService(private val jwtProperties: JwtProperties) {
 
     companion object {
         const val CLAIM_TOKEN_VERSION = "tv"
+        const val CLAIM_SCOPE = "scope"
+        const val SCOPE_SHORTCUT = "shortcut"
+        const val SHORTCUT_PATH = "/api/shortcut/"
     }
 }

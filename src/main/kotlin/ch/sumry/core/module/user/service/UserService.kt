@@ -140,6 +140,23 @@ class UserService(
         return issueToken(user)
     }
 
+    /**
+     * A year-long token for Apple Shortcuts that only reaches /api/shortcut. "Sign out
+     * everywhere" and a password change revoke it along with every session.
+     */
+    fun issueShortcutToken(principal: Principal): ShortcutTokenDto {
+        val user = repo.findById(UUID.fromString(principal.name))
+            .orElseThrow { RequestException(HttpStatus.NOT_FOUND, "User not found") }
+        val lifetime = java.time.Duration.ofDays(365).toMillis()
+        val token = jwtService.generateToken(
+            subject = user.id.toString(),
+            tokenVersion = user.tokenVersion,
+            extraClaims = mapOf(JwtService.CLAIM_SCOPE to JwtService.SCOPE_SHORTCUT),
+            lifetimeMs = lifetime,
+        )
+        return ShortcutTokenDto(token = token, expiresAt = Date(System.currentTimeMillis() + lifetime))
+    }
+
     private fun issueToken(user: User): LoginResponseDto {
         val token = jwtService.generateToken(
             subject = user.id.toString(),

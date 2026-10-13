@@ -71,6 +71,10 @@ class UserController(private val service: UserService) {
         return ResponseEntity.noContent().build()
     }
 
+    /** A token for Apple Shortcuts that can only reach /api/shortcut. */
+    @PostMapping("/shortcut-token")
+    fun shortcutToken(principal: Principal): ShortcutTokenDto = service.issueShortcutToken(principal)
+
     @PostMapping("/login")
     fun login(@Valid @RequestBody dto: LoginDto, request: HttpServletRequest): LoginResponseDto =
         service.login(dto, request)
