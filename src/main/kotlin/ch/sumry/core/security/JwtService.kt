@@ -41,10 +41,12 @@ class JwtService(private val jwtProperties: JwtProperties) {
         subject: String,
         tokenVersion: Int,
         extraClaims: Map<String, Any> = emptyMap(),
-        lifetimeMs: Long = jwtProperties.expirationMs,
+        // Null rather than a default reading jwtProperties: Kotlin evaluates defaults in a
+        // static helper on the Spring proxy, whose fields are never initialised.
+        lifetimeMs: Long? = null,
     ): String {
         val now = Date()
-        val expiryDate = Date(now.time + lifetimeMs)
+        val expiryDate = Date(now.time + (lifetimeMs ?: jwtProperties.expirationMs))
         return Jwts.builder()
             .claims(extraClaims)
             .subject(subject)
