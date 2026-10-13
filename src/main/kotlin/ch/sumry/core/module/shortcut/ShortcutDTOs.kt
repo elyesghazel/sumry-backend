@@ -10,8 +10,8 @@ data class ShortcutCategoriesDTO(val suggested: String?, val categories: List<St
  * Shortcuts passes "CHF 12.50" or "12,50" depending on the locale.
  */
 data class ShortcutLogDTO(
-    val amount: String,
-    val category: String,
+    val amount: String? = null,
+    val category: String? = null,
     val merchant: String? = null,
     /** The Wallet card name; matched against account names when [account] is absent. */
     val card: String? = null,

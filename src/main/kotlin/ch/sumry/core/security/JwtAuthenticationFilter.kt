@@ -1,5 +1,6 @@
 package ch.sumry.core.security
 
+import jakarta.servlet.DispatcherType
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -28,8 +29,10 @@ class JwtAuthenticationFilter(
         if (SecurityContextHolder.getContext().authentication == null) {
             val claims = jwtService.parse(authHeader.substring(7))
             // A Shortcut token lives on a phone for a year, so it opens the Shortcut endpoints only.
+            // The error page has to render too, or a failed Shortcut call answers an empty 401.
             val inScope = claims?.scope == null ||
-                (claims.scope == JwtService.SCOPE_SHORTCUT && request.requestURI.startsWith(JwtService.SHORTCUT_PATH))
+                (claims.scope == JwtService.SCOPE_SHORTCUT &&
+                    (request.requestURI.startsWith(JwtService.SHORTCUT_PATH) || request.dispatcherType == DispatcherType.ERROR))
             if (claims != null && inScope && revocation.isActive(claims)) {
                 // Spring expects roles prefixed; a token without one is an ordinary user.
                 val authorities = listOf(SimpleGrantedAuthority("ROLE_${claims.role ?: "USER"}"))
@@ -43,6 +46,10 @@ class JwtAuthenticationFilter(
 
         filterChain.doFilter(request, response)
     }
+
+    // Authenticate the error dispatch as well, so a 404/405 reaches the caller as itself and
+    // not as an anonymous 401 from the error page.
+    override fun shouldNotFilterErrorDispatch(): Boolean = false
 
     companion object {
         const val CLAIMS_ATTRIBUTE = "sumry.tokenClaims"

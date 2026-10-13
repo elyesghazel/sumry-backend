@@ -49,7 +49,9 @@ class ShortcutService(
     fun log(principal: Principal, dto: ShortcutLogDTO): ShortcutLogResultDTO {
         val userId = UUID.fromString(principal.name)
         val amount = parseAmount(dto.amount)
-            ?: throw RequestException(HttpStatus.BAD_REQUEST, "Could not read an amount from '${dto.amount}'")
+            ?: throw RequestException(HttpStatus.BAD_REQUEST, "No amount in '${dto.amount ?: ""}' - run it from a real payment")
+        val category = dto.category?.trim()?.takeIf { it.isNotEmpty() }
+            ?: throw RequestException(HttpStatus.BAD_REQUEST, "No category chosen")
         val owned = accounts.findByUserId(userId)
         if (owned.isEmpty()) throw RequestException(HttpStatus.CONFLICT, "No account to book on")
         val account = matchAccount(owned, dto.account) ?: matchAccount(owned, dto.card)
@@ -59,14 +61,14 @@ class ShortcutService(
             TransactionCreateDTO(
                 amount = amount,
                 description = merchant,
-                categoryLabel = dto.category.trim(),
+                categoryLabel = category,
                 date = Date(),
                 userAccountId = account.id.toString(),
             ),
             principal,
         )
         val text = "${amount.setScale(2, RoundingMode.HALF_UP).toPlainString()} ${account.currency}" +
-            (merchant?.let { " · $it" } ?: "") + " → ${dto.category.trim()} (${account.accountName})"
+            (merchant?.let { " · $it" } ?: "") + " → $category (${account.accountName})"
         return ShortcutLogResultDTO(booked.id, text)
     }
 

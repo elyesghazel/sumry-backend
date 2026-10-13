@@ -44,7 +44,12 @@ class SecurityConfig(
             .exceptionHandling {
                 // Without this an anonymous request to a protected route 500s on the missing
                 // Principal instead of answering 401.
-                it.authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                // JSON rather than an empty body, so Shortcuts can show why it was refused.
+                it.authenticationEntryPoint { _, response, _ ->
+                    response.status = HttpStatus.UNAUTHORIZED.value()
+                    response.contentType = "application/json"
+                    response.writer.write("{\"error\":\"Unauthorized\",\"message\":\"Token missing, invalid or revoked\"}")
+                }
             }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
 
