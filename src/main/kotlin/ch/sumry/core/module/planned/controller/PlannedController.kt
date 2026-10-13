@@ -43,6 +43,23 @@ class PlannedController(private val service: PlannedService) {
         principal: Principal,
     ): PlannedResponseDTO = service.bookNext(id, principal, date)
 
+    /** Let the next occurrence pass unbooked; `date` must match it when given. */
+    @PostMapping("/{id}/skip")
+    fun skip(
+        @PathVariable id: UUID,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) date: LocalDate?,
+        principal: Principal,
+    ): PlannedResponseDTO = service.skipNext(id, principal, date)
+
+    /** Move the next occurrence to `to`; returns the one-off plan that now carries it. */
+    @PostMapping("/{id}/postpone")
+    fun postpone(
+        @PathVariable id: UUID,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) date: LocalDate?,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate,
+        principal: Principal,
+    ): PlannedResponseDTO = service.postponeNext(id, principal, date, to)
+
     @GetMapping("/upcoming")
     fun upcoming(
         @RequestParam(defaultValue = "30") days: Int,

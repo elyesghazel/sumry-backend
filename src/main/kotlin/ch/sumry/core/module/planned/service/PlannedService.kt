@@ -228,7 +228,63 @@ class PlannedService(
         // Paying early books today, not on the future date the plan says.
         book(planned, onDate ?: minOf(due, today), principal)
         planned.lastBookedOn = maxOf(planned.lastBookedOn ?: due, due)
+        retireIfDone(planned)
         return toDto(repo.save(planned), today)
+    }
+
+    /**
+     * Lets the next unbooked occurrence pass without booking it — the bill that did not come
+     * this month. Only the earliest one can go, so the watermark stays a single date; [date]
+     * guards against skipping a different occurrence than the one on screen.
+     */
+    @Transactional
+    fun skipNext(id: UUID, principal: Principal, date: LocalDate?): PlannedResponseDTO {
+        val planned = owned(id, UUID.fromString(principal.name))
+        val today = LocalDate.now()
+        val next = firstUnbooked(planned, today)
+            ?: throw RequestException(HttpStatus.CONFLICT, "This plan has no occurrences left")
+        if (date != null && date != next) {
+            throw RequestException(HttpStatus.CONFLICT, "Only the next occurrence ($next) can be skipped")
+        }
+        planned.lastBookedOn = next
+        return toDto(repo.save(planned), today)
+    }
+
+    /**
+     * Moves the next unbooked occurrence to [to]: it is skipped on the plan and comes back as
+     * a one-off copy on the new date, so the recurring schedule itself never shifts.
+     */
+    @Transactional
+    fun postponeNext(id: UUID, principal: Principal, date: LocalDate?, to: LocalDate): PlannedResponseDTO {
+        val planned = owned(id, UUID.fromString(principal.name))
+        if (to.isBefore(LocalDate.now())) throw RequestException(HttpStatus.BAD_REQUEST, "The new date must not be in the past")
+        skipNext(id, principal, date)
+        val copy = PlannedTransaction(
+            name = planned.name,
+            amount = planned.amount,
+            description = planned.description ?: planned.name,
+            startDate = to,
+            endDate = to,
+            frequency = Frequency.ONCE,
+            category = planned.category,
+            userAccount = planned.userAccount,
+            toAccount = planned.toAccount,
+            user = planned.user,
+            autoBook = planned.autoBook,
+        )
+        return toDto(repo.save(copy), LocalDate.now())
+    }
+
+    /** A one-off that has been booked has nothing left to plan; it leaves the list. */
+    private fun retireIfDone(p: PlannedTransaction) {
+        if (p.frequency == Frequency.ONCE) p.isActive = false
+    }
+
+    /** The occurrence the overview shows first: overdue (within the lookback) or the next one. */
+    private fun firstUnbooked(p: PlannedTransaction, today: LocalDate): LocalDate? {
+        val after = p.lastBookedOn ?: p.startDate?.minusDays(1) ?: return null
+        val from = maxOf(after, today.minusDays(OVERDUE_LOOKBACK_DAYS))
+        return p.occurrencesBetween(from, today.plusYears(5), limit = 1).firstOrNull()
     }
 
     /** Called by the scheduler: books every due occurrence of every auto-booking plan. */
@@ -244,6 +300,7 @@ class PlannedService(
                 try {
                     book(p, d, principal)
                     p.lastBookedOn = d
+                    retireIfDone(p)
                     repo.save(p)
                     booked++
                 } catch (ex: Exception) {
