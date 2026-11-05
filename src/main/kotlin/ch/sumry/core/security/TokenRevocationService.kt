@@ -25,16 +25,24 @@ class TokenRevocationService(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** True when the token may still be used. */
-    fun isActive(claims: TokenClaims): Boolean {
+    /**
+     * The user's current role when the token may still be used, else null.
+     *
+     * The role comes from the database, never from the token: a token signed with a leaked
+     * key must not be able to raise its own privileges.
+     */
+    fun activeRole(claims: TokenClaims): String? {
         return try {
-            if (redis.hasKey(denyKey(claims.jti))) return false
-            currentVersion(UUID.fromString(claims.subject)) == claims.tokenVersion
+            if (redis.hasKey(denyKey(claims.jti))) return null
+            val state = currentState(UUID.fromString(claims.subject)) ?: return null
+            if (state.version == claims.tokenVersion) state.role else null
         } catch (ex: Exception) {
             log.error("Token check failed, refusing the request: {}", ex.message)
-            false
+            null
         }
     }
+
+    fun isActive(claims: TokenClaims): Boolean = activeRole(claims) != null
 
     fun revoke(claims: TokenClaims) {
         val remaining = Duration.ofMillis(claims.expiresAt.time - System.currentTimeMillis())
@@ -50,16 +58,22 @@ class TokenRevocationService(
         redis.delete(versionKey(userId))
     }
 
-    private fun currentVersion(userId: UUID): Int? {
-        val cached = redis.opsForValue().get(versionKey(userId))
-        if (cached != null) return cached.toIntOrNull()
-        val version = userRepository.findById(userId).map { it.tokenVersion }.orElse(null) ?: return null
-        redis.opsForValue().set(versionKey(userId), version.toString(), VERSION_TTL)
-        return version
+    private data class UserState(val version: Int, val role: String)
+
+    private fun currentState(userId: UUID): UserState? {
+        val cached = redis.opsForValue().get(versionKey(userId))?.split(":")
+        if (cached != null && cached.size == 2) {
+            cached[0].toIntOrNull()?.let { return UserState(it, cached[1]) }
+        }
+        val user = userRepository.findById(userId).orElse(null) ?: return null
+        val state = UserState(user.tokenVersion, user.role.name)
+        redis.opsForValue().set(versionKey(userId), "${state.version}:${state.role}", VERSION_TTL)
+        return state
     }
 
     private fun denyKey(jti: String) = "auth:revoked:$jti"
-    private fun versionKey(userId: UUID) = "auth:tv:$userId"
+    // New key name: entries cached by the old version-only format must not be read as roles.
+    private fun versionKey(userId: UUID) = "auth:tvr:$userId"
 
     companion object {
         private val VERSION_TTL: Duration = Duration.ofMinutes(10)

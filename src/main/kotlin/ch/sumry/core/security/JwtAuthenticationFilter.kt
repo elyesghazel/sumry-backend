@@ -33,9 +33,10 @@ class JwtAuthenticationFilter(
             val inScope = claims?.scope == null ||
                 (claims.scope == JwtService.SCOPE_SHORTCUT &&
                     (request.requestURI.startsWith(JwtService.SHORTCUT_PATH) || request.dispatcherType == DispatcherType.ERROR))
-            if (claims != null && inScope && revocation.isActive(claims)) {
-                // Spring expects roles prefixed; a token without one is an ordinary user.
-                val authorities = listOf(SimpleGrantedAuthority("ROLE_${claims.role ?: "USER"}"))
+            val role = if (claims != null && inScope) revocation.activeRole(claims) else null
+            if (claims != null && role != null) {
+                // Spring expects roles prefixed. The role is the database's, not the token's claim.
+                val authorities = listOf(SimpleGrantedAuthority("ROLE_$role"))
                 val authToken = UsernamePasswordAuthenticationToken(claims.subject, null, authorities)
                 authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
                 SecurityContextHolder.getContext().authentication = authToken
