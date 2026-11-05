@@ -44,5 +44,6 @@ the 1st.
 
 ```bash
 ./gradlew test
+cp .env.example .env              # fill in fresh local values
 docker compose up -d --build     # local stack with Postgres and Redis
 ```
