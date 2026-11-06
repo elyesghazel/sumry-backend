@@ -136,19 +136,25 @@ class PlannedService(
     /**
      * What is left after everything already committed to before the next salary.
      *
-     * balance − planned expenses (and, for a single account, transfers out) falling due
-     * before the next planned income. With no income planned, the horizon is 30 days.
+     * balance of the spending accounts (or the one asked for) − planned expenses paid from
+     * them − planned transfers that leave them, all falling due before the next planned
+     * income. Savings accounts flagged `spending = false` stay out. With no income planned,
+     * the horizon is 30 days.
      */
     fun safeToSpend(principal: Principal, accountId: UUID?): SafeToSpendDTO {
         val userId = UUID.fromString(principal.name)
         val today = LocalDate.now()
         val owned = accounts.findByUserId(userId)
         val scoped = accountId?.let { id -> owned.firstOrNull { it.id == id } ?: throw RequestException(HttpStatus.NOT_FOUND, "Account not found") }
+        // No account flagged as spending would leave nothing to count; fall back to all of them.
+        val scope = scoped?.let { listOf(it) } ?: owned.filter { it.spending }.ifEmpty { owned }
+        val ids = scope.mapNotNull { it.id }.toSet()
         // Everything below is in the base currency, so accounts in other currencies convert first.
         val base = transactions.baseCurrency(userId)
-        val balance = (scoped?.let { listOf(it) } ?: owned).map { fx.convert(it.currentBalance.orZero(), it.currency, base) }.sumMoney()
+        val balance = scope.map { fx.convert(it.currentBalance.orZero(), it.currency, base) }.sumMoney()
 
         val plans = repo.findByUser_IdAndIsActiveTrueOrderByStartDateAsc(userId)
+        // Payday is payday: when looking at the spending accounts, any planned income ends the horizon.
         val nextIncome = plans
             .filter { it.kind() == TransactionKind.INCOME && (scoped == null || it.userAccount?.id == scoped.id) }
             .mapNotNull { it.nextOccurrence(today) }
@@ -156,16 +162,19 @@ class PlannedService(
         val horizon = nextIncome ?: today.plusDays(30)
         val reason = if (nextIncome != null) "next planned income" else "no income planned; 30 days"
 
-        val upcoming = occurrences(userId, today, horizon, accountId, plans)
+        val upcoming = occurrences(userId, today, horizon, ids, plans)
         val inBase = { o: OccurrenceDTO -> fx.convert(o.amount, o.currency, base) }
-        val expenses = upcoming.filter { it.kind == TransactionKind.EXPENSE }.map(inBase).sumMoney()
-        // Between own accounts a transfer is neutral; scoped to one account it is money leaving.
-        val transfersOut = if (scoped != null) upcoming.filter { it.kind == TransactionKind.TRANSFER_OUT }.map(inBase).sumMoney() else Money.ZERO
+        val expenses = upcoming.filter { it.kind == TransactionKind.EXPENSE && it.accountId in ids }.map(inBase).sumMoney()
+        // A transfer within the scope is neutral; one that leaves it (into savings) is money gone.
+        val transfersOut = upcoming
+            .filter { it.kind == TransactionKind.TRANSFER_OUT && it.accountId in ids && it.toAccountId !in ids }
+            .map(inBase).sumMoney()
         val safe = (balance - expenses - transfersOut).money()
         val days = maxOf(1, ChronoUnit.DAYS.between(today, horizon).toInt())
         return SafeToSpendDTO(
             balance = balance,
             accountId = scoped?.id,
+            accountIds = ids.toList(),
             today = today,
             horizon = horizon,
             daysToHorizon = days,
@@ -174,7 +183,7 @@ class PlannedService(
             upcomingTransfersOut = transfersOut,
             safeToSpend = safe,
             perDay = safe.divide(BigDecimal(days), 2, RoundingMode.DOWN),
-            upcoming = upcoming,
+            upcoming = upcoming.filter { it.accountId in ids && (it.kind != TransactionKind.TRANSFER_OUT || it.toAccountId !in ids) },
         )
     }
 
@@ -184,10 +193,18 @@ class PlannedService(
         until: LocalDate,
         accountId: UUID?,
         plans: List<PlannedTransaction> = repo.findByUser_IdAndIsActiveTrueOrderByStartDateAsc(userId),
+    ): List<OccurrenceDTO> = occurrences(userId, today, until, accountId?.let { setOf(it) }, plans)
+
+    private fun occurrences(
+        userId: UUID,
+        today: LocalDate,
+        until: LocalDate,
+        accountIds: Set<UUID>?,
+        plans: List<PlannedTransaction>,
     ): List<OccurrenceDTO> {
         val out = ArrayList<OccurrenceDTO>()
         for (p in plans) {
-            if (accountId != null && p.userAccount?.id != accountId && p.toAccount?.id != accountId) continue
+            if (accountIds != null && p.userAccount?.id !in accountIds && p.toAccount?.id !in accountIds) continue
             // Anything due since the last booking that was never booked is overdue and still
             // counts — for 90 days, after which an ignored plan stops shouting.
             val after = p.lastBookedOn ?: p.startDate?.minusDays(1) ?: continue
@@ -204,6 +221,7 @@ class PlannedService(
                     accountId = p.userAccount!!.id!!,
                     accountName = p.userAccount!!.accountName ?: "",
                     currency = p.userAccount!!.currency,
+                    toAccountId = p.toAccount?.id,
                     toAccountName = p.toAccount?.accountName,
                     autoBook = p.autoBook,
                     overdue = d.isBefore(today),

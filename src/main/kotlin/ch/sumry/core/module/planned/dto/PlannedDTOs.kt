@@ -75,6 +75,7 @@ data class OccurrenceDTO(
     val accountId: UUID,
     val accountName: String,
     val currency: String,
+    val toAccountId: UUID? = null,
     val toAccountName: String?,
     val autoBook: Boolean,
     /** True when the date has passed and nothing was booked for it. */
@@ -82,9 +83,11 @@ data class OccurrenceDTO(
 )
 
 data class SafeToSpendDTO(
-    /** Balance the calculation started from, in the base currency: every account, or the one asked for. */
+    /** Balance the calculation started from, in the base currency: the spending accounts, or the one asked for. */
     val balance: BigDecimal,
     val accountId: UUID?,
+    /** The accounts the balance covers. */
+    val accountIds: List<UUID> = emptyList(),
     val today: LocalDate,
     /** The date the next planned income lands, or today + 30 days when none is planned. */
     val horizon: LocalDate,

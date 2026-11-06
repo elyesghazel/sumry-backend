@@ -15,6 +15,7 @@ object UserAccountMapper {
             accountName = entity.accountName,
             currentBalance = entity.currentBalance,
             currency = entity.currency,
+            spending = entity.spending,
             baseBalance = baseBalance,
             baseCurrency = baseCurrency,
         )
@@ -25,6 +26,7 @@ object UserAccountMapper {
             currentBalance = dto.currentBalance.money(),
             user = userEntity,
             currency = dto.currency.trim().uppercase().ifEmpty { "CHF" },
+            spending = dto.spending,
         )
 
     fun toDtoList(entities: List<UserAccount>): List<UserAccountResponseDto> =

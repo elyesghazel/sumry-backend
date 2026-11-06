@@ -106,6 +106,7 @@ class UserAccountService(
 
         entity.accountName = dto.accountName ?: entity.accountName
         dto.currency?.let { entity.currency = validCurrency(it) }
+        dto.spending?.let { entity.spending = it }
         entity.currentBalance = dto.currentBalance?.money() ?: entity.currentBalance
 
         val updatedEntity = repo.save(entity)

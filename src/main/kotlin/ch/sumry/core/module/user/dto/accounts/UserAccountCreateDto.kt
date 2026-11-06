@@ -10,4 +10,5 @@ data class UserAccountCreateDto(
     val accountName: String,
     val currentBalance: BigDecimal = Money.ZERO,
     val currency: String = "CHF",
+    val spending: Boolean = true,
 )

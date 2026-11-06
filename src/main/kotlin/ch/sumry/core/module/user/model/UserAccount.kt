@@ -21,6 +21,10 @@ class UserAccount (
     @Column(nullable = false, length = 3)
     var currency: String = "CHF",
 
+    /** Counts toward safe-to-spend. Off for savings that are not meant for daily spending. */
+    @Column(nullable = false)
+    var spending: Boolean = true,
+
 
     // The owner is carried as a plain id on the response DTO; serialising the whole
     // User from here dragged the password hash into the payload.
@@ -37,6 +41,7 @@ class UserAccount (
         accountName,
         currentBalance,
         currency,
+        true,
         user
     )
 }

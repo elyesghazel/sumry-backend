@@ -6,4 +6,5 @@ data class UserAccountUpdateDto(
     val accountName: String? = null,
     val currentBalance: BigDecimal? = null,
     val currency: String? = null,
+    val spending: Boolean? = null,
 )

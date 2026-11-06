@@ -10,6 +10,8 @@ data class UserAccountResponseDto (
     val accountName: String?,
     val currentBalance: BigDecimal?,
     val currency: String = "CHF",
+    /** Counts toward safe-to-spend. */
+    val spending: Boolean = true,
     /** The balance in the user's base currency at today's rate. */
     val baseBalance: BigDecimal? = currentBalance,
     val baseCurrency: String = "CHF",
