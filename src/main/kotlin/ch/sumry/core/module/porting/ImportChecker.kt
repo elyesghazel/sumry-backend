@@ -32,12 +32,13 @@ import java.util.*
  * no tools that act: every suggestion goes back to the user, who confirms before anything is
  * booked or deleted. Bank text is treated as data; nothing in it can change the instructions.
  *
- * Off unless SUMRY_ANTHROPIC_API_KEY is set.
+ * Claude runs headless on the host (`claude -p` with no tools, through ~/agents/sumry-ai-bridge),
+ * so no API key is involved. Off unless SUMRY_AI_BRIDGE_URL and SUMRY_AI_BRIDGE_TOKEN are set.
  */
 @Service
 class ImportChecker(
-    @Value("\${sumry.ai.anthropic-api-key:}") private val apiKey: String,
-    @Value("\${sumry.ai.model:claude-sonnet-5-5}") private val model: String,
+    @Value("\${sumry.ai.bridge-url:}") private val bridgeUrl: String,
+    @Value("\${sumry.ai.bridge-token:}") private val bridgeToken: String,
     private val accounts: UserAccountRepository,
     private val transactions: TransactionRepository,
     private val categories: CategoryRepository,
@@ -47,7 +48,7 @@ class ImportChecker(
     private val zone: ZoneId = ZoneId.systemDefault()
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
 
-    val available: Boolean get() = apiKey.isNotBlank()
+    val available: Boolean get() = bridgeUrl.isNotBlank() && bridgeToken.isNotBlank()
 
     fun check(req: ImportCheckRequest, principal: Principal): ImportCheckDTO {
         if (!available) throw RequestException(HttpStatus.SERVICE_UNAVAILABLE, "The Claude check is not configured on this server")
@@ -93,18 +94,10 @@ class ImportChecker(
             appendLine("INCOME CATEGORIES: ${incomeCats.joinToString(", ")}")
         }
 
-        val body = mapOf(
-            "model" to model,
-            "max_tokens" to 8000,
-            "system" to SYSTEM,
-            "tools" to listOf(TOOL),
-            "tool_choice" to mapOf("type" to "tool", "name" to "report"),
-            "messages" to listOf(mapOf("role" to "user", "content" to "<data>\n$data</data>")),
-        )
-        val request = HttpRequest.newBuilder(URI.create("https://api.anthropic.com/v1/messages"))
-            .timeout(Duration.ofSeconds(120))
-            .header("x-api-key", apiKey)
-            .header("anthropic-version", "2023-06-01")
+        val body = mapOf("system" to SYSTEM, "input" to "<data>\n$data</data>", "schema" to SCHEMA)
+        val request = HttpRequest.newBuilder(URI.create(bridgeUrl.trimEnd('/') + "/check"))
+            .timeout(Duration.ofSeconds(300))
+            .header("Authorization", "Bearer $bridgeToken")
             .header("content-type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
             .build()
@@ -114,12 +107,16 @@ class ImportChecker(
             log.warn("Claude check failed: {}", e.javaClass.simpleName)
             throw RequestException(HttpStatus.BAD_GATEWAY, "Could not reach Claude, try again")
         }
-        if (response.statusCode() != 200) {
-            // Never log the body: it could echo the user's data.
-            log.warn("Claude check answered HTTP {}", response.statusCode())
-            throw RequestException(HttpStatus.BAD_GATEWAY, "Claude answered with an error (${response.statusCode()}), try again")
+        when (response.statusCode()) {
+            200 -> {}
+            429 -> throw RequestException(HttpStatus.TOO_MANY_REQUESTS, "Claude is busy with another check, try again in a minute")
+            504 -> throw RequestException(HttpStatus.GATEWAY_TIMEOUT, "Claude took too long, try again")
+            else -> {
+                log.warn("Claude check answered HTTP {}", response.statusCode())
+                throw RequestException(HttpStatus.BAD_GATEWAY, "Claude answered with an error (${response.statusCode()}), try again")
+            }
         }
-        val input = json.readTree(response.body()).path("content").firstOrNull { it.path("type").asText() == "tool_use" }?.path("input")
+        val input = json.readTree(response.body()).path("result").takeIf { it.isObject }
             ?: throw RequestException(HttpStatus.BAD_GATEWAY, "Claude gave no usable answer, try again")
         return toDto(input, req, entries.map { it.first.id!! }, expenseCats.toSet(), incomeCats.toSet())
     }
@@ -175,38 +172,34 @@ class ImportChecker(
             When the amount and date fit but nothing else does, prefer "new".
         """.trimIndent()
 
-        val TOOL = mapOf(
-            "name" to "report",
-            "description" to "Report the verdict for every statement row.",
-            "input_schema" to mapOf(
-                "type" to "object",
-                "properties" to mapOf(
-                    "rows" to mapOf(
-                        "type" to "array",
-                        "items" to mapOf(
-                            "type" to "object",
-                            "properties" to mapOf(
-                                "line" to mapOf("type" to "integer"),
-                                "verdict" to mapOf("type" to "string", "enum" to listOf("logged", "new", "suspicious")),
-                                "entries" to mapOf("type" to "array", "items" to mapOf("type" to "string"), "description" to "E-numbers, for logged"),
-                                "category" to mapOf("type" to "string", "description" to "for new rows; exact label or empty"),
-                                "reason" to mapOf("type" to "string"),
-                            ),
-                            "required" to listOf("line", "verdict", "reason"),
+        val SCHEMA = mapOf(
+            "type" to "object",
+            "properties" to mapOf(
+                "rows" to mapOf(
+                    "type" to "array",
+                    "items" to mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "line" to mapOf("type" to "integer"),
+                            "verdict" to mapOf("type" to "string", "enum" to listOf("logged", "new", "suspicious")),
+                            "entries" to mapOf("type" to "array", "items" to mapOf("type" to "string"), "description" to "E-numbers, for logged"),
+                            "category" to mapOf("type" to "string", "description" to "for new rows; exact label or empty"),
+                            "reason" to mapOf("type" to "string"),
                         ),
+                        "required" to listOf("line", "verdict", "reason"),
                     ),
-                    "adjustments" to mapOf(
-                        "type" to "array",
-                        "items" to mapOf(
-                            "type" to "object",
-                            "properties" to mapOf("entry" to mapOf("type" to "string"), "note" to mapOf("type" to "string")),
-                            "required" to listOf("entry", "note"),
-                        ),
-                    ),
-                    "summary" to mapOf("type" to "string", "description" to "one or two sentences for the person"),
                 ),
-                "required" to listOf("rows", "adjustments", "summary"),
+                "adjustments" to mapOf(
+                    "type" to "array",
+                    "items" to mapOf(
+                        "type" to "object",
+                        "properties" to mapOf("entry" to mapOf("type" to "string"), "note" to mapOf("type" to "string")),
+                        "required" to listOf("entry", "note"),
+                    ),
+                ),
+                "summary" to mapOf("type" to "string", "description" to "one or two sentences for the person"),
             ),
+            "required" to listOf("rows", "adjustments", "summary"),
         )
     }
 }
