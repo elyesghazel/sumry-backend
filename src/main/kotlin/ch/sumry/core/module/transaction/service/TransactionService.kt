@@ -525,7 +525,12 @@ class TransactionService(
         val current = account.currentBalance.orZero()
         val delta = (newBalance.money() - current).money()
 
-        if (Money.isZero(delta)) return null
+        // A check that already matched still counts as reconciled.
+        account.lastReconciledAt = Date()
+        if (Money.isZero(delta)) {
+            userAccountRepository.save(account)
+            return null
+        }
 
         val category = adjustmentCategory(userId)
         val kind = if (delta.signum() > 0) TransactionKind.INCOME else TransactionKind.EXPENSE

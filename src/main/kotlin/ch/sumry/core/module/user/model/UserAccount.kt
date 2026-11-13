@@ -25,6 +25,10 @@ class UserAccount (
     @Column(nullable = false)
     var spending: Boolean = true,
 
+    /** When the balance was last confirmed against the real bank or wallet; null until the first reconcile. */
+    @Column(name = "last_reconciled_at")
+    var lastReconciledAt: Date? = null,
+
 
     // The owner is carried as a plain id on the response DTO; serialising the whole
     // User from here dragged the password hash into the payload.
@@ -42,6 +46,7 @@ class UserAccount (
         currentBalance,
         currency,
         true,
+        null,
         user
     )
 }

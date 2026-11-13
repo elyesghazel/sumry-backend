@@ -18,6 +18,7 @@ object UserAccountMapper {
             spending = entity.spending,
             baseBalance = baseBalance,
             baseCurrency = baseCurrency,
+            lastReconciledAt = entity.lastReconciledAt?.toInstant(),
         )
 
     fun fromDtoToEntity(dto: UserAccountCreateDto, userEntity: User): UserAccount =
