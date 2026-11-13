@@ -38,9 +38,11 @@ class PortingService(
     fun preview(req: ImportPreviewRequest, principal: Principal): ImportPreviewDTO {
         val userId = UUID.fromString(principal.name)
         val account = ownedAccount(req.accountId, userId)
-        if (req.csv.isBlank()) throw RequestException(HttpStatus.BAD_REQUEST, "csv is empty")
-        val parsed = CsvParsers.parse(req.csv, req.format)
-        if (parsed.rows.isEmpty()) {
+        val parsed = StatementReader.read(req)
+        // A PDF or camt file that yields nothing still answers 200: its warnings carry the
+        // redacted diagnostics the user needs to get the layout supported.
+        val statementFile = parsed.format == PdfStatementParser.FORMAT || parsed.format.startsWith("camt")
+        if (parsed.rows.isEmpty() && !statementFile) {
             throw RequestException(HttpStatus.BAD_REQUEST, "No transactions found (${parsed.format}). " + parsed.warnings.joinToString("; "))
         }
 
@@ -74,7 +76,7 @@ class PortingService(
                 currencyMismatch = r.currency != null && !r.currency.equals(account.currency, ignoreCase = true),
             )
         }
-        val closing = parsed.rows.maxByOrNull { it.date }?.balanceAfter
+        val closing = parsed.closingBalance ?: parsed.rows.maxByOrNull { it.date }?.balanceAfter
         return ImportPreviewDTO(
             format = parsed.format,
             accountId = account.id!!,
@@ -85,6 +87,9 @@ class PortingService(
             uncategorisedCount = rows.count { !it.duplicate && it.categoryLabel == null },
             warnings = parsed.warnings,
             statementClosingBalance = closing,
+            statementFrom = parsed.statementFrom,
+            statementTo = parsed.statementTo,
+            statementOpeningBalance = parsed.openingBalance,
         )
     }
 

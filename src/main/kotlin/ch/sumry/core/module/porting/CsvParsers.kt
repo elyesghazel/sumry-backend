@@ -20,7 +20,16 @@ data class ParsedRow(
     val balanceAfter: BigDecimal?,
 )
 
-data class ParseResult(val format: String, val rows: List<ParsedRow>, val warnings: List<String>)
+data class ParseResult(
+    val format: String,
+    val rows: List<ParsedRow>,
+    val warnings: List<String>,
+    /** Statement period and balances, when the file states them (PDF, camt). */
+    val statementFrom: LocalDate? = null,
+    val statementTo: LocalDate? = null,
+    val openingBalance: BigDecimal? = null,
+    val closingBalance: BigDecimal? = null,
+)
 
 /**
  * Bank exports differ in delimiter, header language, date shape and how the sign is
@@ -102,7 +111,7 @@ object CsvParsers {
 
     private val pfNoise = listOf(
         Regex("^(KAUF/DIENSTLEISTUNG|ONLINE-EINKAUF|EINKAUF|BARGELDBEZUG|DIENSTLEISTUNG)\\s+VOM\\s+\\d{2}\\.\\d{2}\\.\\d{4}\\s+", RegexOption.IGNORE_CASE),
-        Regex("KARTEN\\s*NR\\.?\\s*[X\\d]+\\s*", RegexOption.IGNORE_CASE),
+        Regex("KARTEN\\s*(?:NR\\.?|NUMMER)\\s*:?\\s*[X\\d]+\\s*", RegexOption.IGNORE_CASE),
         Regex("^(TWINT\\s+(KAUF|ZAHLUNG|GUTSCHRIFT)|E-BANKING-AUFTRAG|GUTSCHRIFT|LASTSCHRIFT|DAUERAUFTRAG|ÜBERTRAG|ZAHLUNG)\\s*(VOM\\s+\\d{2}\\.\\d{2}\\.\\d{4})?\\s*", RegexOption.IGNORE_CASE),
         Regex("\\s+(REFERENZ|MITTEILUNGEN?|REF\\.?)\\s*:?.*$", RegexOption.IGNORE_CASE),
         Regex("\\s{2,}"),

@@ -8,9 +8,14 @@ import java.util.*
 
 data class ImportPreviewRequest(
     val accountId: UUID,
-    /** auto | postfinance | revolut | generic */
+    /** auto | postfinance | revolut | generic | postfinance-pdf | camt053 */
     val format: String? = "auto",
-    val csv: String,
+    /** Pasted CSV text, the original shape. Optional when [fileBase64] is sent. */
+    val csv: String? = "",
+    /** An uploaded statement file (PDF, camt.053/052/054 XML or CSV), base64, at most 10 MB. */
+    val fileBase64: String? = null,
+    /** The file's name; only used as a hint when the content does not say what it is. */
+    val fileName: String? = null,
 )
 
 data class ImportRowDTO(
@@ -40,6 +45,10 @@ data class ImportPreviewDTO(
     val warnings: List<String>,
     /** The statement's closing balance when it had one; compare with the account after import. */
     val statementClosingBalance: BigDecimal?,
+    /** The period the statement covers (stated in the file, else its first and last booking). */
+    val statementFrom: LocalDate? = null,
+    val statementTo: LocalDate? = null,
+    val statementOpeningBalance: BigDecimal? = null,
 )
 
 data class ImportCommitRow(
