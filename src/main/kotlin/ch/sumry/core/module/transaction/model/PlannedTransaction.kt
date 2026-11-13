@@ -3,6 +3,7 @@ package ch.sumry.core.module.transaction.model
 import ch.sumry.core.module.category.model.Category
 import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.model.UserAccount
+import ch.sumry.core.privacy.maskAccounts
 import ch.sumry.core.types.TransactionKind
 import jakarta.persistence.*
 import java.math.BigDecimal
@@ -69,6 +70,13 @@ class PlannedTransaction(
 ) {
     val isTransfer: Boolean
         get() = toAccount != null
+
+    /** The note is copied onto every booked occurrence, so it is masked like a transaction's. */
+    @PrePersist
+    @PreUpdate
+    fun maskAccountNumbers() {
+        description = maskAccounts(description)
+    }
 
     fun kind(): TransactionKind = when {
         isTransfer -> TransactionKind.TRANSFER_OUT

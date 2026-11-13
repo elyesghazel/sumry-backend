@@ -1,5 +1,6 @@
 package ch.sumry.core.module.transaction.service
 
+import ch.sumry.core.privacy.maskAccounts
 import ch.sumry.core.exception.RequestException
 import ch.sumry.core.module.category.model.Category
 import ch.sumry.core.module.category.repo.CategoryRepository
@@ -196,7 +197,7 @@ class TransactionService(
         return QuickEntryDTO(
             parsed = QuickEntryParsed(
                 amount = parsed.amount,
-                description = parsed.description,
+                description = maskAccounts(parsed.description),
                 date = parsed.date,
                 kind = kind,
                 accountId = account?.id,
@@ -320,7 +321,7 @@ class TransactionService(
         userAccountRepository.save(oldAccount)
 
         // 5. Apply the requested changes
-        if (dto.description != null) transaction.description = dto.description
+        if (dto.description != null) transaction.description = maskAccounts(dto.description)
         if (dto.date != null) transaction.date = dto.date
         if (dto.amount != null) transaction.amount = dto.amount.money()
 
