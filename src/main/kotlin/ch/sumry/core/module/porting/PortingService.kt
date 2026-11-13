@@ -26,6 +26,7 @@ class PortingService(
     private val transactionService: TransactionService,
     private val categories: CategoryRepository,
     private val rules: RuleService,
+    private val checker: ImportChecker,
 ) {
     private val zone: ZoneId = ZoneId.systemDefault()
 
@@ -46,17 +47,23 @@ class PortingService(
             throw RequestException(HttpStatus.BAD_REQUEST, "No transactions found (${parsed.format}). " + parsed.warnings.joinToString("; "))
         }
 
-        // Existing entries on this account, indexed by (day, amount, kind) for the duplicate check.
-        val existing = HashMap<Triple<LocalDate, String, TransactionKind>, Transaction>()
-        for (t in transactions.findByUserAccount_User_Id(userId)) {
-            if (t.userAccount?.id != account.id || t.date == null) continue
-            val key = Triple(t.date!!.toInstant().atZone(zone).toLocalDate(), t.amount.orZero().toPlainString(), t.effectiveKind())
-            existing.putIfAbsent(key, t)
-        }
+        // Existing entries on this account, lined up by amount and nearby day, not by text.
+        val entries = transactions.findByUserAccount_User_Id(userId)
+            .filter { it.userAccount?.id == account.id && it.date != null && it.id != null }
+            .map {
+                ImportMatcher.Entry(
+                    id = it.id!!,
+                    date = it.date!!.toInstant().atZone(zone).toLocalDate(),
+                    amount = it.amount.orZero(),
+                    kind = it.effectiveKind(),
+                    label = it.description?.takeIf { d -> d.isNotBlank() } ?: it.category?.label ?: "entry",
+                )
+            }
+        val matches = ImportMatcher.match(parsed.rows, entries)
         val ruleSet = rules.list(principal)
 
-        val rows = parsed.rows.map { r ->
-            val dup = existing[Triple(r.date, r.amount.toPlainString(), r.kind)]
+        val rows = parsed.rows.mapIndexed { i, r ->
+            val m = matches[i]
             val suggestion = ruleSet.firstOrNull { rule ->
                 rule.isActive && (rule.accountId == null || rule.accountId == account.id) &&
                     rule.categoryType == (if (r.kind == TransactionKind.INCOME) "INCOME" else "EXPENSE") &&
@@ -71,12 +78,17 @@ class PortingService(
                 kind = r.kind,
                 currency = r.currency,
                 categoryLabel = suggestion,
-                duplicate = dup != null,
-                duplicateOfId = dup?.id,
+                duplicate = m != null,
+                duplicateOfId = m?.ids?.firstOrNull(),
                 currencyMismatch = r.currency != null && !r.currency.equals(account.currency, ignoreCase = true),
+                matchIds = m?.ids ?: emptyList(),
+                matchKind = m?.kind?.name?.lowercase()?.replace('_', '-'),
+                matchNote = m?.note,
+                bookingDate = r.bookingDate,
             )
         }
         val closing = parsed.closingBalance ?: parsed.rows.maxByOrNull { it.date }?.balanceAfter
+        val computed = ImportMatcher.computedClosing(parsed.openingBalance, parsed.rows)
         return ImportPreviewDTO(
             format = parsed.format,
             accountId = account.id!!,
@@ -90,6 +102,9 @@ class PortingService(
             statementFrom = parsed.statementFrom,
             statementTo = parsed.statementTo,
             statementOpeningBalance = parsed.openingBalance,
+            computedClosingBalance = computed,
+            balanceOk = if (computed != null && closing != null) computed.compareTo(closing) == 0 else null,
+            aiCheckAvailable = checker.available,
         )
     }
 

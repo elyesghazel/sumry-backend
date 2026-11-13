@@ -32,6 +32,14 @@ data class ImportRowDTO(
     val duplicateOfId: UUID?,
     /** True when the statement currency disagrees with the account's. */
     val currencyMismatch: Boolean,
+    /** The entries this row was matched to (one, or several for a split); empty when new. */
+    val matchIds: List<UUID> = emptyList(),
+    /** same-day | near | split, null when unmatched. */
+    val matchKind: String? = null,
+    /** What it matched, for the user: "Kebab · 9 Oct" or "Transfer 100 + Revolut fee 0.35 · 2 Oct". */
+    val matchNote: String? = null,
+    /** The bank's booking day when [date] is the earlier purchase day from the text. */
+    val bookingDate: LocalDate? = null,
 )
 
 data class ImportPreviewDTO(
@@ -49,6 +57,12 @@ data class ImportPreviewDTO(
     val statementFrom: LocalDate? = null,
     val statementTo: LocalDate? = null,
     val statementOpeningBalance: BigDecimal? = null,
+    /** Opening balance plus every parsed row; equal to the closing balance when nothing was misread. */
+    val computedClosingBalance: BigDecimal? = null,
+    /** True when opening + rows = closing, false when they differ, null when the file has no balances. */
+    val balanceOk: Boolean? = null,
+    /** Whether POST /api/import/check (Claude) is configured on this server. */
+    val aiCheckAvailable: Boolean = false,
 )
 
 data class ImportCommitRow(
@@ -74,4 +88,41 @@ data class ImportCommitDTO(
     val booked: Int,
     val skipped: List<ImportSkipped>,
     val transactions: List<TransactionResponseDTO>,
+)
+
+data class ImportCheckRow(
+    val line: Int,
+    val date: LocalDate,
+    val bookingDate: LocalDate? = null,
+    val description: String,
+    val amount: BigDecimal,
+    val kind: TransactionKind,
+)
+
+data class ImportCheckRequest(
+    val accountId: UUID,
+    /** The rows still unmatched after the preview, as shown (IBANs already masked). */
+    val rows: List<ImportCheckRow>,
+    /** Entries the preview already matched; they are not offered to Claude again. */
+    val matchedIds: List<UUID> = emptyList(),
+    val statementFrom: LocalDate? = null,
+    val statementTo: LocalDate? = null,
+)
+
+data class ImportCheckSuggestion(
+    val line: Int,
+    /** logged | new | suspicious */
+    val verdict: String,
+    val matchIds: List<UUID> = emptyList(),
+    val categoryLabel: String? = null,
+    val reason: String,
+)
+
+data class ImportCheckAdjustment(val id: UUID, val note: String)
+
+data class ImportCheckDTO(
+    val suggestions: List<ImportCheckSuggestion>,
+    /** Hand-made reconcile adjustments that the new rows would count a second time. */
+    val adjustments: List<ImportCheckAdjustment>,
+    val summary: String,
 )
