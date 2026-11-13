@@ -170,6 +170,7 @@ object PdfStatementParser {
     private val weakBalanceLine = Regex("^(neuer saldo|alter saldo|saldo|solde)(?![\\p{L}])")
     private val totalLine = Regex("^(total|umsatztotal|zwischentotal|summe|totaux|totale)(?![\\p{L}])")
     private val incomeHints = Regex("gutschrift|eingang|lohn|salär|salaer|rückerstattung|rueckerstattung|zins|credit", RegexOption.IGNORE_CASE)
+    private val purchaseRe = Regex("\\bVOM\\s+([0-3]?[0-9]\\.[01]?[0-9]\\.[0-9]{4})\\b", RegexOption.IGNORE_CASE)
     private val periodRe = Regex("([0-3]?[0-9]\\.[01]?[0-9]\\.(?:[0-9]{4}|[0-9]{2}))\\s*(?:-|–|bis|to|au)\\s*([0-3]?[0-9]\\.[01]?[0-9]\\.(?:[0-9]{4}|[0-9]{2}))")
 
     private fun date(text: String): LocalDate? = CsvParsers.parseDate(text, listOf("d.M.yyyy", "d.M.yy"))
@@ -231,9 +232,14 @@ object PdfStatementParser {
                 }
             }
             running = o.balance ?: running?.let { if (kind == TransactionKind.INCOME) Money.of(it + o.amount) else Money.of(it - o.amount) }
+            // "... VOM 01.10.2026 ..." is the purchase day; that is the day an entry was made by hand,
+            // so it is the row's date and the booking day is kept beside it.
+            val purchase = purchaseRe.find(raw)?.groupValues?.get(1)?.let { date(it) }
+                ?.takeIf { !it.isAfter(o.date) && !it.isBefore(o.date.minusDays(14)) }
             rows += ParsedRow(
                 line = o.start.no,
-                date = o.date,
+                date = purchase ?: o.date,
+                bookingDate = if (purchase != null && purchase != o.date) o.date else null,
                 description = CsvParsers.cleanPostFinance(raw).ifEmpty { raw },
                 rawDescription = raw,
                 amount = o.amount,
@@ -252,7 +258,14 @@ object PdfStatementParser {
             if (positional && idx < firstHeaderIdx) continue
 
             val words = line.words
-            val leadingDate = words.first().takeIf { isDate(it) }?.let { date(it.text) }
+            val cols0 = columns
+            // Card payments print the purchase date at the start of the second text line
+            // ("APPLE PAY KAUF/DIENSTLEISTUNG VOM" / "01.10.2026 KARTENNUMMER ... MIGROS"). A date
+            // in the text column continues the open booking; only one in the date column starts one.
+            val first = words.first()
+            val dateInTextColumn = isDate(first) && if (cols0 != null) first.x >= (cols0.text?.x ?: cols0.date.xEnd) - 6f
+            else open != null && first.x > open!!.start.x + 4f
+            val leadingDate = first.takeIf { isDate(it) && !dateInTextColumn }?.let { date(it.text) }
             val body = if (leadingDate != null) words.drop(1) else words
             val cols = columns
 

@@ -18,6 +18,8 @@ data class ParsedRow(
     val currency: String?,
     /** Bank-side balance after the row when the statement has one. */
     val balanceAfter: BigDecimal?,
+    /** The day the bank booked it, when [date] is the earlier purchase day from the text. */
+    val bookingDate: LocalDate? = null,
 )
 
 data class ParseResult(
@@ -110,18 +112,28 @@ object CsvParsers {
     }
 
     private val pfNoise = listOf(
-        Regex("^(KAUF/DIENSTLEISTUNG|ONLINE-EINKAUF|EINKAUF|BARGELDBEZUG|DIENSTLEISTUNG)\\s+VOM\\s+\\d{2}\\.\\d{2}\\.\\d{4}\\s+", RegexOption.IGNORE_CASE),
+        // Card and wallet payments: "APPLE PAY KAUF/DIENSTLEISTUNG VOM 01.10.2026", "KAUF/ONLINE-SHOPPING VOM ...",
+        // sometimes printed with the "KAUF" cut off as "/DIENSTLEISTUNG VOM ...".
+        Regex("^(?:(?:APPLE|GOOGLE|SAMSUNG)\\s+PAY\\s+)?(?:KAUF)?/?(?:KAUF/DIENSTLEISTUNG|DIENSTLEISTUNG|ONLINE-SHOPPING|ONLINE-EINKAUF|EINKAUF|BARGELDBEZUG)\\s+VOM(?:\\s+\\d{2}\\.\\d{2}\\.\\d{4})?\\s*", RegexOption.IGNORE_CASE),
         Regex("KARTEN\\s*(?:NR\\.?|NUMMER)\\s*:?\\s*[X\\d]+\\s*", RegexOption.IGNORE_CASE),
+        Regex("^TWINT\\s+GELD\\s+(?:SENDEN|EMPFANGEN)\\s+VOM(?:\\s+\\d{2}\\.\\d{2}\\.\\d{4})?\\s*", RegexOption.IGNORE_CASE),
         Regex("^(TWINT\\s+(KAUF|ZAHLUNG|GUTSCHRIFT)|E-BANKING-AUFTRAG|GUTSCHRIFT|LASTSCHRIFT|DAUERAUFTRAG|ÜBERTRAG|ZAHLUNG)\\s*(VOM\\s+\\d{2}\\.\\d{2}\\.\\d{4})?\\s*", RegexOption.IGNORE_CASE),
+        // Credits name the payer after the (masked) account: "CH•• … 1765 ABSENDER: DIGITEC ...".
+        Regex("^(?:[A-Z]{2}•• … [A-Z0-9]{4}\\s+)?(?:AUFTRAGGEBER|ABSENDER|SENDER|EMPFÄNGER|EMPFAENGER)\\s*:\\s*", RegexOption.IGNORE_CASE),
         Regex("\\s+(REFERENZ|MITTEILUNGEN?|REF\\.?)\\s*:?.*$", RegexOption.IGNORE_CASE),
         Regex("\\s{2,}"),
     )
+
+    private val twintPerson = Regex("^TWINT\\s+GELD\\s+(SENDEN|EMPFANGEN)", RegexOption.IGNORE_CASE)
 
     /** "KAUF/DIENSTLEISTUNG VOM 28.08.2026 KARTEN NR. XXXX1234 COOP-1234 ZUERICH" → "COOP-1234 ZUERICH" */
     fun cleanPostFinance(text: String): String {
         var t = text.trim()
         for (r in pfNoise) t = r.replace(t, " ").trim()
-        return t.ifEmpty { text.trim() }
+        if (t.isEmpty()) return text.trim()
+        // Keep "TWINT" in front of the person or shop, otherwise "+41 79 ... Name" says nothing.
+        val twint = twintPerson.containsMatchIn(text.trim()) && !t.startsWith("TWINT", ignoreCase = true)
+        return if (twint) "TWINT $t" else t
     }
 
     // ---------------------------------------------------------------- Revolut
