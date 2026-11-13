@@ -13,11 +13,15 @@ import java.util.*
 
 @RestController
 @RequestMapping("/api")
-class PortingController(private val service: PortingService) {
+class PortingController(private val service: PortingService, private val checker: ImportChecker) {
 
     /** Parse a statement and see what would be booked, what is already there, and what lacks a category. */
     @PostMapping("/import/preview")
     fun preview(@RequestBody req: ImportPreviewRequest, principal: Principal): ImportPreviewDTO = service.preview(req, principal)
+
+    /** Ask Claude about the rows the preview could not match; suggestions only, nothing is written. */
+    @PostMapping("/import/check")
+    fun check(@RequestBody req: ImportCheckRequest, principal: Principal): ImportCheckDTO = checker.check(req, principal)
 
     @PostMapping("/import/commit")
     fun commit(@RequestBody req: ImportCommitRequest, principal: Principal): ImportCommitDTO = service.commit(req, principal)
