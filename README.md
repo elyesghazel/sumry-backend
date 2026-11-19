@@ -16,7 +16,8 @@ Spring Boot / Kotlin, PostgreSQL, Redis. Every route under `/api` needs a bearer
 
 | Area | Routes |
 |---|---|
-| Session | `users/login`, `users/logout`, `users/logout-all`, `users/password`, `users/preferences` |
+| Session | `users/login`, `users/logout`, `users/logout-all`, `users/password`, `users/preferences`, `users/me` (profile, plan, limits) |
+| Admin | `admin/users/{id}/plan` - set a user's plan (role ADMIN) |
 | Accounts | `users/accounts` — CRUD, `reconcile/{id}` books the gap to the real balance; accounts carry a currency |
 | Transactions | `transactions/` list, `transactions/search` (filtered, paged, with sums), `transactions/quick` (natural language), transfers, `cashflow/{account}` |
 | Categories | `category/user`, `category/`, `category/label` |
@@ -46,6 +47,11 @@ host) and only serves the users listed in `SUMRY_AI_USERS`, comma-separated user
 emails. Everyone else gets 403 and the bridge is never called; with an empty list AI is off
 for everyone. `GET /api/users/me/capabilities` returns `{"aiEnabled": ...}` for the current
 user.
+
+Plan limits are off unless `SUMRY_LIMITS_ENABLED=true`; while off every user is treated as
+premium. When on, `FREE` users get at most `SUMRY_FREE_MAX_ACCOUNTS` (default 2) accounts,
+no `import/*` and no statement email; blocked calls answer 403
+`{"error":"plan_limit","limit":"accounts|statement_import|statement_email"}`.
 
 ### Building
 
