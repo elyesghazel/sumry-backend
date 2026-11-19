@@ -64,7 +64,7 @@ abstract class DatabaseIntegrationTest {
     protected fun register(json: String, clientIp: String = "203.0.113.1"): ResultActions =
         mockMvc.perform(
             post("/api/users/register").contentType(MediaType.APPLICATION_JSON)
-                .header("X-Forwarded-For", clientIp)
+                .with { it.remoteAddr = clientIp; it }
                 .content(json)
         )
 

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.data.redis.core.ValueOperations
 import org.springframework.http.HttpStatus
+import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import java.util.*
 
@@ -34,12 +35,10 @@ class LoginRateLimiterTest {
         every { getExpire(any()) } returns 900L
         every { delete(any<String>()) } answers { store.remove(firstArg<String>()) != null }
     }
-    private val limiter = LoginRateLimiter(redis)
+    private val limiter = LoginRateLimiter(redis, ClientIpResolver(null, null))
 
-    private fun request(ip: String = "203.0.113.7") = mockk<HttpServletRequest> {
-        every { getHeader("X-Forwarded-For") } returns ip
-        every { remoteAddr } returns "10.0.0.1"
-    }
+    private fun request(ip: String = "203.0.113.7"): HttpServletRequest =
+        MockHttpServletRequest().apply { remoteAddr = ip }
 
     private val users = mockk<UserRepository>(relaxed = true).also { users ->
         every { users.save(any<User>()) } answers { firstArg() }
@@ -101,5 +100,30 @@ class LoginRateLimiterTest {
         val req = request()
         repeat(5) { assertNull(limiter.signupRetryAfterSeconds(req)) }
         assertNotNull(limiter.signupRetryAfterSeconds(req))
+    }
+
+    @Test
+    fun `a new fake first X-Forwarded-For entry per attempt still hits the limit behind one proxy`() {
+        val behindCaddy = LoginRateLimiter(redis, ClientIpResolver(null, 1))
+        repeat(30) { i -> behindCaddy.recordFailure(spoofed("198.51.100.$i, 203.0.113.7"), "x$i@example.com") }
+        assertNotNull(behindCaddy.retryAfterSeconds(spoofed("192.0.2.1, 203.0.113.7"), "fresh@example.com"))
+        repeat(5) { i -> assertNull(behindCaddy.signupRetryAfterSeconds(spoofed("198.51.100.$i, 203.0.113.8"))) }
+        assertNotNull(behindCaddy.signupRetryAfterSeconds(spoofed("192.0.2.42, 203.0.113.8")))
+    }
+
+    @Test
+    fun `a fake X-Forwarded-For does not move the address in header mode`() {
+        val behindCloudflare = LoginRateLimiter(redis, ClientIpResolver("CF-Connecting-IP", null))
+        fun req(i: Int) = spoofed("198.51.100.$i, 172.70.0.1").apply {
+            addHeader("CF-Connecting-IP", "203.0.113.9")
+        }
+        repeat(30) { i -> behindCloudflare.recordFailure(req(i), "x$i@example.com") }
+        assertNotNull(behindCloudflare.retryAfterSeconds(req(99), "fresh@example.com"))
+    }
+
+    /** A request through a proxy at 10.0.0.1 whose client made up the first X-Forwarded-For entry. */
+    private fun spoofed(xff: String) = MockHttpServletRequest().apply {
+        remoteAddr = "10.0.0.1"
+        addHeader("X-Forwarded-For", xff)
     }
 }
