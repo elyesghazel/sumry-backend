@@ -15,7 +15,10 @@ import java.time.Duration
  * signing in, it only loses the throttle until Redis is back.
  */
 @Service
-class LoginRateLimiter(private val redis: StringRedisTemplate) {
+class LoginRateLimiter(
+    private val redis: StringRedisTemplate,
+    private val clientIp: ClientIpResolver,
+) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     /**
@@ -53,7 +56,7 @@ class LoginRateLimiter(private val redis: StringRedisTemplate) {
      */
     fun signupRetryAfterSeconds(request: HttpServletRequest): Long? {
         return try {
-            val key = "auth:rl:signup:ip:${clientAddress(request)}"
+            val key = "auth:rl:signup:ip:${clientIp.resolve(request)}"
             if (hit(key, SIGNUP_WINDOW) > SIGNUP_IP_LIMIT) maxOf(redis.getExpire(key) ?: 0L, 1L) else null
         } catch (ex: Exception) {
             log.warn("Signup rate limiter unavailable, allowing the attempt: {}", ex.message)
@@ -70,7 +73,7 @@ class LoginRateLimiter(private val redis: StringRedisTemplate) {
         }
     }
 
-    private fun ipKey(request: HttpServletRequest) = "auth:rl:ip:${clientAddress(request)}"
+    private fun ipKey(request: HttpServletRequest) = "auth:rl:ip:${clientIp.resolve(request)}"
 
     private fun emailKey(email: String) = "auth:rl:email:${email.trim().lowercase()}"
 
@@ -81,18 +84,6 @@ class LoginRateLimiter(private val redis: StringRedisTemplate) {
         if (count == 1L) redis.expire(key, window)
         return count
     }
-
-    /**
-     * Traefik is the only way into this container, so the first hop of X-Forwarded-For is
-     * the real client; without the header (local dev) the socket address is.
-     */
-    private fun clientAddress(request: HttpServletRequest): String =
-        request.getHeader("X-Forwarded-For")
-            ?.split(',')
-            ?.firstOrNull()
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: request.remoteAddr
 
     companion object {
         private val WINDOW: Duration = Duration.ofMinutes(15)
