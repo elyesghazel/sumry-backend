@@ -8,6 +8,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.context.TestPropertySource
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
@@ -39,6 +40,13 @@ class DefaultCategoriesIntegrationTest : DatabaseIntegrationTest() {
         ).andExpect(status().isCreated).andReturn().response.contentAsString
         return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").find(body)!!.groupValues[1]
     }
+
+    private fun reconcile(token: String, accountId: String) =
+        mockMvc.perform(
+            put("/api/users/accounts/reconcile/$accountId").header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"newBalance":90}""")
+        ).andExpect(status().isOk)
 
     private fun quick(token: String, text: String, book: Boolean) = mockMvc.perform(
         post("/api/transactions/quick").header("Authorization", "Bearer $token")
@@ -79,5 +87,26 @@ class DefaultCategoriesIntegrationTest : DatabaseIntegrationTest() {
         createUser("bob@example.com", "SecurePassword12")
         signUp("alice")
         assertEquals(0, count("SELECT count(*) FROM categories c JOIN users u ON u.id = c.user_id WHERE u.email = 'bob@example.com'"))
+    }
+
+    @Test
+    fun `a new account books adjustments in English`() {
+        val token = signUp("alice")
+        reconcile(token, addCash(token))
+            .andExpect(jsonPath("$.description").value("Adjustment"))
+        assertEquals(1, count("SELECT count(*) FROM categories WHERE label = 'Adjustment'"))
+    }
+
+    @Test
+    fun `an account with the old adjustment category keeps using it`() {
+        val token = signUp("alice")
+        val userId = jdbc.queryForObject("SELECT id FROM users WHERE email = 'alice@example.com'", java.util.UUID::class.java)
+        jdbc.update(
+            "INSERT INTO categories (id, label, category_type, user_id, is_active) VALUES (?, 'Einstellung', 'EXPENSE', ?, true)",
+            java.util.UUID.randomUUID(), userId,
+        )
+        reconcile(token, addCash(token))
+        assertEquals(0, count("SELECT count(*) FROM categories WHERE label = 'Adjustment'"))
+        assertEquals(1, count("SELECT count(*) FROM transactions t JOIN categories c ON c.id = t.category_id WHERE c.label = 'Einstellung'"))
     }
 }

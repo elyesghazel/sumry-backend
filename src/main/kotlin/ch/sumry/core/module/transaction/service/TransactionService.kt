@@ -42,7 +42,15 @@ import java.time.ZoneId
 import java.util.*
 
 /** The label adjustments are booked under. */
-const val ADJUSTMENT_LABEL = "Einstellung"
+const val ADJUSTMENT_LABEL = "Adjustment"
+
+/**
+ * The label older accounts got their adjustment category under. It is still used where it
+ * exists, so their adjustments keep grouping together.
+ */
+const val LEGACY_ADJUSTMENT_LABEL = "Einstellung"
+
+fun isAdjustmentLabel(label: String?): Boolean = label == ADJUSTMENT_LABEL || label == LEGACY_ADJUSTMENT_LABEL
 
 @Service
 class TransactionService(
@@ -537,7 +545,7 @@ class TransactionService(
 
         val transaction = Transaction(
             amount = delta.abs(),
-            description = note?.takeIf { it.isNotBlank() } ?: "Abgleich",
+            description = note?.takeIf { it.isNotBlank() } ?: "Adjustment",
             category = category,
             kind = kind,
             date = Date(),
@@ -561,19 +569,21 @@ class TransactionService(
      * so an adjustment up and an adjustment down still group together in reports.
      */
     private fun adjustmentCategory(userId: UUID): Category =
-        categoryRepository.findByLabelAndUser_Id(ADJUSTMENT_LABEL, userId).orElseGet {
-            categoryRepository.save(
-                Category(
-                    label = ADJUSTMENT_LABEL,
-                    parentGroup = null,
-                    color = "#838300",
-                    icon = "options",
-                    categoryType = CategoryType.EXPENSE,
-                    user = userRepository.getReferenceById(userId),
-                    isActive = true,
+        categoryRepository.findByLabelAndUser_Id(LEGACY_ADJUSTMENT_LABEL, userId)
+            .or { categoryRepository.findByLabelAndUser_Id(ADJUSTMENT_LABEL, userId) }
+            .orElseGet {
+                categoryRepository.save(
+                    Category(
+                        label = ADJUSTMENT_LABEL,
+                        parentGroup = null,
+                        color = "#838300",
+                        icon = "options",
+                        categoryType = CategoryType.EXPENSE,
+                        user = userRepository.getReferenceById(userId),
+                        isActive = true,
+                    )
                 )
-            )
-        }
+            }
 
     // ------------------------------------------------------------- reporting
 

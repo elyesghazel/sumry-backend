@@ -4,7 +4,7 @@ import ch.sumry.core.ai.AiAccess
 import ch.sumry.core.exception.RequestException
 import ch.sumry.core.module.category.repo.CategoryRepository
 import ch.sumry.core.module.transaction.repo.TransactionRepository
-import ch.sumry.core.module.transaction.service.ADJUSTMENT_LABEL
+import ch.sumry.core.module.transaction.service.isAdjustmentLabel
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.privacy.maskAccounts
 import ch.sumry.core.types.TransactionKind
@@ -94,7 +94,7 @@ class ImportChecker(
             appendLine("LEDGER ENTRIES ON THIS ACCOUNT, NOT YET MATCHED (E-number | date | amount | kind | category | note):")
             for ((i, pair) in entries.withIndex()) {
                 val (t, d) = pair
-                val adj = if (t.category?.label == ADJUSTMENT_LABEL) " [RECONCILE ADJUSTMENT]" else ""
+                val adj = if (isAdjustmentLabel(t.category?.label)) " [RECONCILE ADJUSTMENT]" else ""
                 appendLine("E$i | $d | ${signed(t.effectiveKind(), t.amount.orZero())} | ${t.effectiveKind()} | ${t.category?.label ?: "-"}$adj | ${maskAccounts(t.description ?: "").take(120)}")
             }
             appendLine()
