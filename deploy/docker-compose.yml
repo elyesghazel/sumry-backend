@@ -109,6 +109,10 @@ services:
       - /var/cache/nginx:mode=1777
       - /var/run:mode=1777
       - /tmp:mode=1777
+    # Optional legal pages: copy legal/*.example.md to privacy.md / imprint.md, edit them
+    # and uncomment. Each file that exists gets a page and a link in the app.
+    # volumes:
+    #   - ./legal:/usr/share/nginx/html/legal:ro
     mem_limit: 64m
     networks: [web]
     healthcheck:

@@ -68,6 +68,11 @@ the host. Restore into a running stack:
 docker compose exec -T postgres pg_restore -U sumry -d sumry --clean --if-exists < backups/sumry-<timestamp>.dump
 ```
 
+## Privacy policy and imprint
+
+Copy `legal/*.example.md` to `legal/privacy.md` and `legal/imprint.md`, adapt them (templates, not legal advice) and uncomment the `volumes` lines of `frontend` in `docker-compose.yml`.
+The app then shows `/privacy` and `/imprint`, links them and asks for privacy consent at signup; without the files nothing changes.
+
 ## Hardening
 
 - Every container has a read-only root filesystem, `no-new-privileges`, all capabilities
