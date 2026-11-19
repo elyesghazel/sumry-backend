@@ -130,6 +130,8 @@ Everything is set through environment variables. In the self-host stack they go 
 | `SUMRY_VERSION` | `latest` | Image tag for API and web app, e.g. `v1.0.0` |
 | `SUMRY_BOOTSTRAP_ADMIN_EMAIL` | empty | First admin, created on an empty database with a one-time password in the log |
 | `SUMRY_REGISTRATION_MODE` | `closed` | `closed`, `invite` (needs a code from an admin) or `open` |
+| `SUMRY_TRUSTED_PROXY_HOPS` | `0` (`1` in `deploy/`) | Proxies in front that append to `X-Forwarded-For`. The client address for the login and signup limits is the entry this many hops from the right; `0` uses the socket address |
+| `SUMRY_CLIENT_IP_HEADER` | empty | Take the client address from this header instead, e.g. `CF-Connecting-IP`. Only set it when the origin accepts connections from that proxy alone, otherwise anyone can forge it |
 | `JWT_EXPIRATION_MS` | `86400000` | Session length (24 h) |
 | `SUMRY_CORS_ALLOWED_ORIGINS` | empty in `deploy/` | Extra browser origins, comma-separated. Not needed for the bundled web app |
 | `SPRINGDOC_ENABLED` | `false` | Swagger UI at `/swagger-ui.html` |
