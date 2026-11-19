@@ -1,5 +1,6 @@
 package ch.sumry.core.exception
 
+import ch.sumry.core.module.plan.PlanLimitException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -22,6 +23,11 @@ class GlobalExceptionHandler {
         val body = mapOf("error" to ex.message)
         return ResponseEntity(body, ex.status)
     }
+
+    /** Fixed shape so clients can show an upgrade hint for the exact limit. */
+    @ExceptionHandler(PlanLimitException::class)
+    fun handlePlanLimit(ex: PlanLimitException): ResponseEntity<Map<String, String>> =
+        ResponseEntity(mapOf("error" to "plan_limit", "limit" to ex.limit), HttpStatus.FORBIDDEN)
 
     @ExceptionHandler(DataIntegrityViolationException::class)
     fun handleDatabaseConflict(ex: DataIntegrityViolationException): ResponseEntity<Map<String, String>> {

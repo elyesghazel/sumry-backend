@@ -9,4 +9,6 @@ interface UserAccountRepository: JpaRepository<UserAccount, UUID> {
     fun existsByAccountNameAndUserId(accountName: String?, userId: UUID?): Boolean
 
     fun findByUserId(userId: UUID): List<UserAccount>
+
+    fun countByUserId(userId: UUID): Long
 }
