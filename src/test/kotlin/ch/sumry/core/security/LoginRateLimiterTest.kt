@@ -47,6 +47,7 @@ class LoginRateLimiterTest {
     private val service = UserService(
         users, mockk(relaxed = true), limiter, mockk(relaxed = true),
         RegistrationPolicy("open", false), mockk(relaxed = true), mockk(relaxed = true),
+        mockk(relaxed = true),
     )
 
     private fun user(email: String) = User(
