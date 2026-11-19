@@ -16,4 +16,6 @@ data class MeDto(
     val plan: Plan,
     val limitsEnabled: Boolean,
     val limits: PlanLimits,
+    /** Same value as /api/users/me/capabilities: on the AI allowlist and the bridge is configured. */
+    val aiEnabled: Boolean,
 )
