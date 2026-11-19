@@ -59,6 +59,9 @@ class UserService(
         if (mode == RegistrationMode.CLOSED) {
             throw RequestException(HttpStatus.FORBIDDEN, "Registration is disabled on this instance")
         }
+        request?.let { rateLimiter.signupRetryAfterSeconds(it) }?.let { retryAfter ->
+            throw RequestException(HttpStatus.TOO_MANY_REQUESTS, "Too many signups. Try again in $retryAfter seconds.")
+        }
         val inviteCode = dto.inviteCode?.takeIf { it.isNotBlank() }
         if (mode == RegistrationMode.INVITE) {
             if (inviteCode == null) {
