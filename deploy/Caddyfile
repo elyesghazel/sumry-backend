@@ -1,0 +1,12 @@
+# SUMRY_SITE_ADDRESS is SUMRY_DOMAIN from .env, or :80 when no domain is set.
+{$SUMRY_SITE_ADDRESS} {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy backend:48090
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}
