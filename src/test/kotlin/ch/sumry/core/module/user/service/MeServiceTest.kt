@@ -1,6 +1,7 @@
 package ch.sumry.core.module.user.service
 
 import ch.sumry.core.module.plan.PlanService
+import ch.sumry.core.module.porting.ImportChecker
 import ch.sumry.core.module.user.model.Plan
 import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.repo.UserAccountRepository
@@ -24,9 +25,10 @@ class MeServiceTest {
         )
     }
     private val accounts: UserAccountRepository = mockk(relaxed = true)
+    private val checker: ImportChecker = mockk { every { enabledFor(userId) } returns false }
 
     private fun me(limitsEnabled: Boolean) =
-        MeService(users, PlanService(users, accounts, limitsEnabled, 2)).me(Principal { userId.toString() })
+        MeService(users, PlanService(users, accounts, limitsEnabled, 2), checker).me(Principal { userId.toString() })
 
     @Test
     fun `existing user is premium with no limits while limits are off`() {
@@ -38,6 +40,14 @@ class MeServiceTest {
         assertNull(me.limits.maxAccounts)
         assertTrue(me.limits.statementImport)
         assertTrue(me.limits.statementEmail)
+        assertFalse(me.aiEnabled)
+    }
+
+    @Test
+    fun `aiEnabled comes from the import checker`() {
+        every { checker.enabledFor(userId) } returns true
+
+        assertTrue(me(limitsEnabled = false).aiEnabled)
     }
 
     @Test

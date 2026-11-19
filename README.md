@@ -16,7 +16,7 @@ Spring Boot / Kotlin, PostgreSQL, Redis. Every route under `/api` needs a bearer
 
 | Area | Routes |
 |---|---|
-| Session | `users/login`, `users/logout`, `users/logout-all`, `users/password`, `users/preferences`, `users/me` (profile, plan, limits) |
+| Session | `users/login`, `users/logout`, `users/logout-all`, `users/password`, `users/preferences`, `users/me` (profile, plan, limits, `aiEnabled`) |
 | Admin | `admin/users/{id}/plan` - set a user's plan (role ADMIN) |
 | Accounts | `users/accounts` — CRUD, `reconcile/{id}` books the gap to the real balance; accounts carry a currency |
 | Transactions | `transactions/` list, `transactions/search` (filtered, paged, with sums), `transactions/quick` (natural language), transfers, `cashflow/{account}` |
