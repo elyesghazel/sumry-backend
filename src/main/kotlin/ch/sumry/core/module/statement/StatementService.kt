@@ -4,6 +4,7 @@ import ch.sumry.core.exception.RequestException
 import ch.sumry.core.module.budget.service.BudgetService
 import ch.sumry.core.module.fx.FxService
 import ch.sumry.core.module.insights.service.InsightsService
+import ch.sumry.core.module.plan.PlanService
 import ch.sumry.core.module.transaction.repo.TransactionRepository
 import ch.sumry.core.module.transaction.service.TransactionService
 import ch.sumry.core.module.user.repo.UserAccountRepository
@@ -38,6 +39,7 @@ class StatementService(
     private val insights: InsightsService,
     private val fx: FxService,
     private val mail: JavaMailSender,
+    private val plans: PlanService,
     @Value("\${spring.mail.host:}") private val mailHost: String,
     @Value("\${sumry.statement.from:}") private val mailFrom: String,
     @Value("\${sumry.statement.scheduled:false}") private val scheduled: Boolean,
@@ -112,6 +114,7 @@ class StatementService(
     fun send(principal: Principal, month: YearMonth, to: String?): String {
         if (!mailConfigured) throw RequestException(HttpStatus.SERVICE_UNAVAILABLE, "Mail is not configured on this instance (SUMRY_MAIL_HOST)")
         val userId = UUID.fromString(principal.name)
+        plans.requireStatementEmail(userId)
         val user = users.findById(userId).orElseThrow()
         val recipient = to?.takeIf { it.isNotBlank() } ?: user.email
         val s = statement(principal, month)
@@ -131,6 +134,7 @@ class StatementService(
         if (!scheduled || !mailConfigured) return
         val month = YearMonth.now().minusMonths(1)
         for (user in users.findAll()) {
+            if (!plans.effective(user).limits.statementEmail) continue
             try {
                 send(Principal { user.id.toString() }, month, null)
                 log.info("Statement for {} sent to {}", month, user.email)

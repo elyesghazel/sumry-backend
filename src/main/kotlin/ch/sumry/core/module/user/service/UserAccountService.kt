@@ -26,6 +26,7 @@ class UserAccountService(
     private val userRepository: UserRepository,
     private val transactionService: TransactionService,
     private val fx: ch.sumry.core.module.fx.FxService,
+    private val plans: ch.sumry.core.module.plan.PlanService,
 ) {
 
     /** Accounts with their balances also expressed in the user's base currency. */
@@ -80,6 +81,8 @@ class UserAccountService(
             throw RequestException(HttpStatus.NOT_FOUND, "User with ID $userId not found")
         }
 
+
+        plans.requireAccountSlot(userId)
 
         // check if exists
         if (repo.existsByAccountNameAndUserId(account.accountName, userReference.id)) {
