@@ -31,6 +31,7 @@ class UserService(
      */
     private val registration: RegistrationPolicy,
     private val invites: InviteService,
+    private val deletion: UserDeletionService,
 ) {
 
     fun getAll(): List<UserResponseDto> = repo.findAll().map { UserMapper.toDto(it) }
@@ -140,6 +141,24 @@ class UserService(
         repo.save(user)
         revocation.revokeAll(userId)
         return issueToken(user)
+    }
+
+    /**
+     * Deletes the caller's account and all of their data. The password is required for the
+     * same reason as for a password change: a leaked token must not be enough to wipe it.
+     */
+    fun deleteOwnAccount(dto: AccountDeleteDto, principal: Principal) {
+        val userId = UUID.fromString(principal.name)
+        val user = repo.findById(userId).orElseThrow {
+            RequestException(HttpStatus.NOT_FOUND, "User not found")
+        }
+        val encoder = org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()
+        if (!encoder.matches(dto.password, user.password)) {
+            throw RequestException(HttpStatus.UNAUTHORIZED, "Password is incorrect")
+        }
+        deletion.deleteAllData(userId)
+        // After the commit, so a request racing the delete cannot re-cache the old state.
+        revocation.forget(userId)
     }
 
     /** Revokes exactly the token this request was made with. */

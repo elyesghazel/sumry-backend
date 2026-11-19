@@ -57,6 +57,16 @@ class UserController(private val service: UserService) {
         principal: Principal
     ): ResponseEntity<LoginResponseDto> = ResponseEntity.ok(service.changePassword(dto, principal))
 
+    /**
+     * Deletes the caller's account and every row of their data. Needs the current password
+     * in the body: `{"password": "..."}`.
+     */
+    @DeleteMapping("/me")
+    fun deleteMe(@Valid @RequestBody dto: AccountDeleteDto, principal: Principal): ResponseEntity<Unit> {
+        service.deleteOwnAccount(dto, principal)
+        return ResponseEntity.noContent().build()
+    }
+
     /** Signs out this device: the token used for the call stops working immediately. */
     @PostMapping("/logout")
     fun logout(request: HttpServletRequest): ResponseEntity<Unit> {

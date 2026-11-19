@@ -58,6 +58,18 @@ class TokenRevocationService(
         redis.delete(versionKey(userId))
     }
 
+    /**
+     * Drops the cached token state of a deleted user. Without the cache entry every token
+     * they held fails the database lookup and stops working at once, not after the TTL.
+     */
+    fun forget(userId: UUID) {
+        try {
+            redis.delete(versionKey(userId))
+        } catch (ex: Exception) {
+            log.warn("Could not clear token cache for a deleted user, it expires in {}: {}", VERSION_TTL, ex.message)
+        }
+    }
+
     private data class UserState(val version: Int, val role: String)
 
     private fun currentState(userId: UUID): UserState? {
