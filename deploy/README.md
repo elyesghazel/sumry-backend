@@ -72,6 +72,7 @@ docker compose exec -T postgres pg_restore -U sumry -d sumry --clean --if-exists
 
 Copy `legal/*.example.md` to `legal/privacy.md` and `legal/imprint.md`, adapt them (templates, not legal advice) and uncomment the `volumes` lines of `frontend` in `docker-compose.yml`.
 The app then shows `/privacy` and `/imprint`, links them and asks for privacy consent at signup; without the files nothing changes.
+With plan limits on, an optional `legal/premium.md` (see `premium.example.md`) holds your payment details and replaces the generic "How to pay" text on the Plan tab.
 
 ## Hardening
 
