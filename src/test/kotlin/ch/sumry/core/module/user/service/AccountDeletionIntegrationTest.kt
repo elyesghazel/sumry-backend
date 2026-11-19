@@ -82,6 +82,30 @@ class AccountDeletionIntegrationTest : DatabaseIntegrationTest() {
         assertEquals(2, count("SELECT count(*) FROM invite_codes"))
     }
 
+    /**
+     * Every table that points at users, or at a table that belongs to a user, must be handled
+     * by [UserDeletionService]. A new migration that adds one fails here until it is.
+     */
+    @Test
+    fun `deletion knows every table that references user data`() {
+        val referencing = jdbc.queryForList(
+            """
+            SELECT DISTINCT src.relname FROM pg_constraint c
+            JOIN pg_class src ON src.oid = c.conrelid
+            JOIN pg_class dst ON dst.oid = c.confrelid
+            WHERE c.contype = 'f' AND dst.relname IN ('users', 'user_accounts', 'categories')
+            """,
+            String::class.java,
+        ).toSet()
+        assertEquals(
+            setOf(
+                "user_preferences", "user_accounts", "categories", "transactions", "user_budgets",
+                "planned_transactions", "category_rules", "goals", "invite_codes",
+            ),
+            referencing,
+        )
+    }
+
     @Test
     fun `the token stops working once the account is gone`() {
         createUser("alice@example.com", "AlicePassword12")
