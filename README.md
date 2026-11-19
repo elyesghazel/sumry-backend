@@ -40,6 +40,13 @@ is owned by Flyway (`src/main/resources/db/migration`); Hibernate only validates
 `SUMRY_MAIL_HOST/PORT/USER/PASSWORD/FROM` plus `SUMRY_STATEMENT_SCHEDULED=true` to send on
 the 1st.
 
+The Claude check on statement imports (`import/check`) is optional and off by default. It
+needs `SUMRY_AI_BRIDGE_URL` and `SUMRY_AI_BRIDGE_TOKEN` (a headless `claude -p` bridge on the
+host) and only serves the users listed in `SUMRY_AI_USERS`, comma-separated user ids or
+emails. Everyone else gets 403 and the bridge is never called; with an empty list AI is off
+for everyone. `GET /api/users/me/capabilities` returns `{"aiEnabled": ...}` for the current
+user.
+
 ### Building
 
 ```bash
