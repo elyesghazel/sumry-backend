@@ -163,20 +163,35 @@ else in Sumry needs it.
 
 ### What an admin can see
 
-Users with role `ADMIN` manage the instance, not other people's money. Through the API and
-the web app's admin page an admin sees, per user: username, email, signup date, last sign-in,
-plan, the invite used, whether the user is locked, and how many accounts and transactions
-they have. Counts only: no balances, amounts, descriptions, notes or categories. The instance
-stats are totals (users, signups per week, premium users, database size).
+Users with role `ADMIN` manage the instance, not other people's money. Every `/api/admin`
+route checks the role on the server. The user list (`GET /api/admin/users`) shows, per user:
+username, email, role, plan, active or locked, signup date, last sign-in, the first
+characters of the invite code they used, and how many accounts and transactions they have.
+Counts only: no balances, amounts, descriptions, notes or categories. `GET /api/admin/stats`
+returns totals: users, locked users, premium users, signups per week over the last 12 weeks,
+and the database size.
 
-An admin can set a user's plan, lock and unlock them (a lock ends their sessions at once),
-delete them with all their data, and issue a one-time password reset. There is no
-impersonation and no way to sign in as another user. Every admin action is written to an
-audit log (`GET /api/admin/audit`) with who did it, to whom and when.
+What an admin can do:
 
-A password reset is the one action that hands an admin a way into an account: whoever uses
-the reset token sets a new password. It is logged, and the user notices because their old
-password stops working.
+- **Set the plan** (`POST /api/admin/users/{id}/plan`).
+- **Lock and unlock.** A lock refuses sign-in and ends every session and Shortcut token the
+  user holds at once. Unlocking lets them sign in again; the old tokens stay revoked.
+- **Delete** a user with all their data.
+- **Issue a password reset.** This creates a one-time token, valid for 24 hours, shown to the
+  admin once; only a hash is stored. Until reset mails exist, the admin passes it on by hand,
+  and the user redeems it with `POST /api/users/password-reset`, which signs them out
+  everywhere.
+- Manage invites. An admin cannot lock or delete their own account through these routes.
+
+There is no impersonation and no route to sign in as another user. Every admin action (plan,
+lock, unlock, delete, password reset, invite created or revoked) writes a row to an audit log,
+readable with `GET /api/admin/audit`: which admin, which user, what, when. Audit rows stay when
+a user is deleted, with the user id left as a bare id that no longer resolves to a name; the
+audit detail never holds a username, email or invite note.
+
+A password reset is the one action that gives an admin a way into an account: whoever holds
+the token can set a new password. It is in the audit log, and the user notices because their
+old password stops working and all their sessions end.
 
 This protects users from the app, not from the operator. Whoever runs the server and has
 access to the database, its backups or the host can read every row, including all
@@ -186,14 +201,15 @@ trust, or run your own.
 ## API
 
 Every route under `/api` needs a bearer token from `POST /api/users/login`, except
-`users/register`, `GET /api/config` and `/actuator/health`.
+`users/register`, `users/password-reset`, `GET /api/config` and `/actuator/health`.
 
 | Area | Routes |
 |---|---|
 | Session | `users/login`, `users/logout`, `users/logout-all`, `users/password`, `users/preferences`, `users/me` (profile, plan, limits, `aiEnabled`) |
 | Registration | `users/register` (takes `inviteCode` in invite mode), `config` (public, `{registrationMode}`) |
 | Account deletion | `DELETE users/me` with `{"password": "..."}`: removes the user and all their data in one transaction |
-| Admin | `admin/users/{id}/plan` sets a user's plan; `admin/invites` creates (`{expiresInDays?, note?}`, the code is shown once), lists, and `DELETE admin/invites/{id}` revokes (role ADMIN) |
+| Admin | `admin/users` (counts only), `admin/stats`, `admin/audit?page=&size=`; per user `admin/users/{id}/plan`, `/lock`, `/unlock`, `/password-reset`, `DELETE admin/users/{id}`; `admin/invites` creates (`{expiresInDays?, note?}`, the code is shown once), lists, and `DELETE admin/invites/{id}` revokes (role ADMIN) |
+| Password reset | `users/password-reset` (public) with `{"token": "...", "newPassword": "..."}` redeems a token from `admin/users/{id}/password-reset` |
 | Accounts | `users/accounts` CRUD, `reconcile/{id}` books the gap to the real balance; accounts carry a currency |
 | Transactions | `transactions/` list, `transactions/search` (filtered, paged, with sums), `transactions/quick` (natural language), transfers, `cashflow/{account}` |
 | Categories | `category/user`, `category/`, `category/label` |
