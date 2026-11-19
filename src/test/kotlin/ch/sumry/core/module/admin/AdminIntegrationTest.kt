@@ -7,6 +7,9 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.web.bind.annotation.RequestMethod
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.ResultActions
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
@@ -20,9 +23,16 @@ private const val ADMIN_PASSWORD = "AdminPassword12"
 private const val USER_EMAIL = "alice@example.com"
 private const val USER_PASSWORD = "AlicePassword12"
 
+/** What [AdminIntegrationTest.seedEverything] writes for a user and no other caller may read. */
+private val ALICE_MARKERS = listOf(
+    "4242.42", "98765.43", "SECRET-NOTE-TEXT", "Account 0", "Account 1",
+    "SECRET-CATEGORY", "31337.77", "SECRET-GOAL", "27182.81", "SECRET-PLAN", "16180.33", "SECRET-RULE",
+)
+
 class AdminIntegrationTest : DatabaseIntegrationTest() {
 
     @Autowired private lateinit var objectMapper: ObjectMapper
+    @Autowired @Qualifier("requestMappingHandlerMapping") private lateinit var handlerMapping: RequestMappingHandlerMapping
 
     private lateinit var adminId: UUID
     private lateinit var aliceId: UUID
@@ -332,6 +342,102 @@ class AdminIntegrationTest : DatabaseIntegrationTest() {
                 assertFalse(body.contains(it), "$name contains $it")
             }
         }
+    }
+
+    @Test
+    fun `the old cross-user routes are gone`() {
+        seedFinances(aliceId)
+        listOf(
+            "/api/transactions/user/$aliceId",
+            // 405: PUT and DELETE /api/users/accounts/{accountId} still match the path.
+            "/api/users/accounts/all",
+            "/api/category/admin",
+            "/api/users",
+        ).forEach { path ->
+            val response = call(get(path)).andReturn().response
+            assertTrue(response.status in setOf(404, 405), "GET $path answered ${response.status}")
+            ALICE_MARKERS.forEach { assertFalse(response.contentAsString.contains(it), "GET $path returned $it") }
+        }
+    }
+
+    /**
+     * Walks every GET route the app serves, fills each path variable and the usual id query
+     * parameters with ids of another user's rows, and calls it as ADMIN and as DEBUG. None
+     * of the other user's amounts, balances, names or notes may come back. A new route that
+     * hands out someone else's data fails here without anyone having to list it.
+     */
+    @Test
+    fun `no route returns another user's finance data to an ADMIN or DEBUG token`() {
+        val ids = seedEverything(aliceId)
+        createUser("debug@example.com", "DebugPassword123", role = "DEBUG")
+        val callers = mapOf("ADMIN" to adminToken, "DEBUG" to login("debug@example.com", "DebugPassword123"))
+        val routes = getRoutes()
+        assertTrue(routes.size > 20, "found only $routes")
+
+        callers.forEach { (role, token) ->
+            requestsFor(routes, ids).forEach { path ->
+                val body = call(get(path), token).andReturn().response.contentAsString
+                ALICE_MARKERS.forEach { assertFalse(body.contains(it), "$role GET $path returned $it: $body") }
+            }
+        }
+
+        // The same sweep as the owner sees every marker, so the check above can see a leak.
+        val own = login(USER_EMAIL, USER_PASSWORD)
+        val seen = requestsFor(routes, ids).flatMap { path ->
+            val body = call(get(path), own).andReturn().response.contentAsString
+            ALICE_MARKERS.filter { body.contains(it) }
+        }.toSet()
+        assertEquals(ALICE_MARKERS.toSet(), seen)
+    }
+
+    /** Every GET path pattern, from the same mapping the dispatcher uses. */
+    private fun getRoutes(): List<String> = handlerMapping.handlerMethods.keys
+        .filter { it.methodsCondition.methods.isEmpty() || RequestMethod.GET in it.methodsCondition.methods }
+        .flatMap { it.pathPatternsCondition?.patternValues ?: it.directPaths }
+        .distinct().sorted()
+
+    private fun requestsFor(routes: List<String>, ids: List<UUID>): List<String> {
+        val query = "?userId=$aliceId&accountId=${ids[1]}&id=${ids[1]}"
+        return routes.flatMap { route ->
+            val filled = if ('{' in route) ids.map { id -> route.replace(Regex("\\{[^}]+}"), id.toString()) } else listOf(route)
+            filled.flatMap { listOf(it, it + query) }
+        }
+    }
+
+    /**
+     * [seedFinances] plus one of each other kind of row, every one with a marker from
+     * [ALICE_MARKERS]. Returns the user id followed by the ids of the seeded rows.
+     */
+    private fun seedEverything(userId: UUID): List<UUID> {
+        seedFinances(userId)
+        val accounts = jdbc.queryForList("SELECT id FROM user_accounts WHERE user_id = ? ORDER BY account_name", UUID::class.java, userId)
+        val transaction = jdbc.queryForList(
+            "SELECT t.id FROM transactions t JOIN user_accounts a ON a.id = t.user_account_id WHERE a.user_id = ?", UUID::class.java, userId,
+        ).first()
+        val category = UUID.randomUUID()
+        val budget = UUID.randomUUID()
+        val goal = UUID.randomUUID()
+        val planned = UUID.randomUUID()
+        val rule = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO categories (id, label, category_type, is_active, user_id) VALUES (?, 'SECRET-CATEGORY', 'EXPENSE', true, ?)",
+            category, userId,
+        )
+        jdbc.update("INSERT INTO user_budgets (id, max_amount, category_id, user_id) VALUES (?, 31337.77, ?, ?)", budget, category, userId)
+        jdbc.update(
+            "INSERT INTO goals (id, user_id, name, target_amount, saved_amount) VALUES (?, ?, 'SECRET-GOAL', 27182.81, 0)",
+            goal, userId,
+        )
+        jdbc.update(
+            "INSERT INTO planned_transactions (id, amount, name, description, frequency, start_date, category_id, user_id, user_account_id) " +
+                "VALUES (?, 16180.33, 'SECRET-PLAN', 'SECRET-PLAN', 'MONTHLY', current_date + 3, ?, ?, ?)",
+            planned, category, userId, accounts[0],
+        )
+        jdbc.update(
+            "INSERT INTO category_rules (id, user_id, pattern, category_id) VALUES (?, ?, 'SECRET-RULE', ?)",
+            rule, userId, category,
+        )
+        return listOf(userId) + accounts + listOf(transaction, category, budget, goal, planned, rule)
     }
 
     private fun fieldNames(node: JsonNode): Set<String> = when {
