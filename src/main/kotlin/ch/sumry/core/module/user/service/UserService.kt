@@ -183,6 +183,8 @@ class UserService(
             throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
         }
         rateLimiter.reset(dto.email)
+        user.lastLoginAt = java.time.Instant.now()
+        repo.save(user)
         return issueToken(user)
     }
 

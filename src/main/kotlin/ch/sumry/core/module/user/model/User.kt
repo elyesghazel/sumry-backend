@@ -2,6 +2,7 @@ package ch.sumry.core.module.user.model
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.*
+import java.time.Instant
 import java.util.*
 
 
@@ -42,6 +43,16 @@ class User(
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var plan: Plan = Plan.FREE,
+
+    @Column(name = "created_at", updatable = false)
+    var createdAt: Instant? = Instant.now(),
+
+    @Column(name = "last_login_at")
+    var lastLoginAt: Instant? = null,
+
+    /** Set while an admin has locked the account. */
+    @Column(name = "locked_at")
+    var lockedAt: Instant? = null,
 ) {
 
     constructor() : this(UUID.randomUUID(), "", "", "", mutableListOf(), null)
