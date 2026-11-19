@@ -1,5 +1,6 @@
 package ch.sumry.core.module.user.service
 
+import ch.sumry.core.module.category.service.DefaultCategories
 import ch.sumry.core.module.user.model.Plan
 import ch.sumry.core.module.user.model.Role
 import ch.sumry.core.module.user.model.User
@@ -23,6 +24,7 @@ import java.security.SecureRandom
 @Component
 class BootstrapAdmin(
     private val repo: UserRepository,
+    private val defaultCategories: DefaultCategories,
     @Value("\${sumry.bootstrap-admin.email:}")
     private val email: String,
 ) : ApplicationRunner {
@@ -51,7 +53,7 @@ class BootstrapAdmin(
             plan = Plan.PREMIUM,
         )
         user.encodePassword(password)
-        repo.save(user)
+        defaultCategories.seed(repo.save(user))
 
         log.warn(
             "Bootstrap admin created: email={} password={} - sign in and change this password now. " +
