@@ -28,6 +28,9 @@ tags do not get backports.
   revoke existing tokens.
 - Every account, transaction, budget, plan and goal is checked against the signed-in user.
 - Registration is closed by default.
+- Admins see counts per user, never amounts or notes. There is no impersonation, and every
+  admin action is audited. Someone with access to the database or the host can still read
+  everything; see [What an admin can see](README.md#what-an-admin-can-see).
 - Only `/actuator/health` is exposed, without details. The API docs are off unless
   `SPRINGDOC_ENABLED=true`.
 - The schema is managed by Flyway; Hibernate only validates it.
