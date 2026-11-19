@@ -39,6 +39,9 @@ Sign in and change the password right away (Settings, or `PUT /api/users/passwor
 password is never stored in plain text and is not printed again. Once any user exists the
 variable is ignored, so it can stay set.
 
+To let other people in, set `SUMRY_REGISTRATION_MODE=invite` and create codes as the admin
+with `POST /api/admin/invites`, or `open` to allow anyone to sign up.
+
 Lost the log line before signing in? Stop the stack, run `docker compose down -v` (this
 deletes all data) and start again. Only do this on a fresh install.
 

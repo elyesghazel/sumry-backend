@@ -40,7 +40,8 @@ is owned by Flyway (`src/main/resources/db/migration`); Hibernate only validates
 ### Environment
 
 `JWT_SECRET` (base64, ≥32 bytes), `JWT_EXPIRATION_MS`, `SUMRY_CORS_ALLOWED_ORIGINS`,
-`SUMRY_REGISTRATION_MODE`, `SPRINGDOC_ENABLED`, and for the statement email
+`SUMRY_REGISTRATION_MODE`, `SUMRY_BOOTSTRAP_ADMIN_EMAIL` (creates the first admin on an
+empty database and logs a one-time password), `SPRINGDOC_ENABLED`, and for the statement email
 `SUMRY_MAIL_HOST/PORT/USER/PASSWORD/FROM` plus `SUMRY_STATEMENT_SCHEDULED=true` to send on
 the 1st.
 
@@ -58,9 +59,15 @@ no `import/*` and no statement email; blocked calls answer 403
 
 `SUMRY_REGISTRATION_MODE` is `closed` (default), `invite` or `open`. In invite mode a signup
 needs an unused, unexpired code from `POST /api/admin/invites`, which needs a user with role
-`ADMIN` (set it in the database: `UPDATE users SET role = 'ADMIN' WHERE email = '...'`).
+`ADMIN` (the bootstrap admin, or set it in the database:
+`UPDATE users SET role = 'ADMIN' WHERE email = '...'`).
 The older `SUMRY_REGISTRATION_ENABLED=true` still means `open` when no mode is set. Signups
 are limited to 5 per client address per hour.
+
+### Self-hosting
+
+`deploy/` has a compose stack with Postgres, Redis, the API, the web app and Caddy with
+automatic HTTPS. See [deploy/README.md](deploy/README.md).
 
 ### Building
 
