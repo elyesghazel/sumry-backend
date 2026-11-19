@@ -88,6 +88,8 @@ kotlin {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	// Skips show up in the log, so a CI run without Docker is visible, not silently green.
+	testLogging { events("skipped", "failed") }
 }
 
 tasks.test {
