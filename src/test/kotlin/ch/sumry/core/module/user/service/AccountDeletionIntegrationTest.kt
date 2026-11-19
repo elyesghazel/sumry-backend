@@ -42,6 +42,10 @@ class AccountDeletionIntegrationTest : DatabaseIntegrationTest() {
             "INSERT INTO invite_codes (id, code_hash, code_hint, created_by, used_by) VALUES (?, ?, 'ABCD', ?, ?)",
             UUID.randomUUID(), UUID.randomUUID().toString(), userId, userId,
         )
+        jdbc.update(
+            "INSERT INTO password_reset_tokens (id, token_hash, user_id, expires_at) VALUES (?, ?, ?, now() + interval '1 day')",
+            UUID.randomUUID(), UUID.randomUUID().toString(), userId,
+        )
     }
 
     private fun rowsOf(userId: UUID): Map<String, Int> = mapOf(
@@ -57,6 +61,7 @@ class AccountDeletionIntegrationTest : DatabaseIntegrationTest() {
         "category_rules" to count("SELECT count(*) FROM category_rules WHERE user_id = ?", userId),
         "goals" to count("SELECT count(*) FROM goals WHERE user_id = ?", userId),
         "invite_codes" to count("SELECT count(*) FROM invite_codes WHERE created_by = ? OR used_by = ?", userId, userId),
+        "password_reset_tokens" to count("SELECT count(*) FROM password_reset_tokens WHERE user_id = ?", userId),
     )
 
     private fun deleteMe(token: String, password: String) = mockMvc.perform(
@@ -100,7 +105,7 @@ class AccountDeletionIntegrationTest : DatabaseIntegrationTest() {
         assertEquals(
             setOf(
                 "user_preferences", "user_accounts", "categories", "transactions", "user_budgets",
-                "planned_transactions", "category_rules", "goals", "invite_codes",
+                "planned_transactions", "category_rules", "goals", "invite_codes", "password_reset_tokens",
             ),
             referencing,
         )

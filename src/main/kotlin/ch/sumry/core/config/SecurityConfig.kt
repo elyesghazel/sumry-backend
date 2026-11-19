@@ -33,7 +33,7 @@ class SecurityConfig(
                     // CORS preflight must reach the browser unauthenticated.
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     // The only endpoints reachable without a token.
-                    .requestMatchers(HttpMethod.POST, "/api/users/register", "/api/users/login").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/users/register", "/api/users/login", "/api/users/password-reset").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/config").permitAll()
                     // Liveness for Traefik/Uptime Kuma. Other actuator endpoints stay protected.
                     .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
