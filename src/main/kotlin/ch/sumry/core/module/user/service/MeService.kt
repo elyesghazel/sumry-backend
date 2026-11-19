@@ -26,6 +26,7 @@ class MeService(
             id = user.id,
             username = user.username,
             email = user.email,
+            role = user.role,
             plan = plan.plan,
             limitsEnabled = plan.limitsEnabled,
             limits = plan.limits,

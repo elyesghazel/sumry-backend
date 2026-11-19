@@ -3,6 +3,7 @@ package ch.sumry.core.module.user.service
 import ch.sumry.core.module.plan.PlanService
 import ch.sumry.core.module.porting.ImportChecker
 import ch.sumry.core.module.user.model.Plan
+import ch.sumry.core.module.user.model.Role
 import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.repo.UserAccountRepository
 import ch.sumry.core.module.user.repo.UserRepository
@@ -35,6 +36,7 @@ class MeServiceTest {
         val me = me(limitsEnabled = false)
 
         assertEquals("owner", me.username)
+        assertEquals(Role.USER, me.role)
         assertEquals(Plan.PREMIUM, me.plan)
         assertFalse(me.limitsEnabled)
         assertNull(me.limits.maxAccounts)
