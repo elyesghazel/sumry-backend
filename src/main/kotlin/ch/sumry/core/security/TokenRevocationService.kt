@@ -78,6 +78,8 @@ class TokenRevocationService(
             cached[0].toIntOrNull()?.let { return UserState(it, cached[1]) }
         }
         val user = userRepository.findById(userId).orElse(null) ?: return null
+        // Locking also bumps the token version; this keeps a locked user out even if not.
+        if (user.lockedAt != null) return null
         val state = UserState(user.tokenVersion, user.role.name)
         redis.opsForValue().set(versionKey(userId), "${state.version}:${state.role}", VERSION_TTL)
         return state

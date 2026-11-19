@@ -182,6 +182,10 @@ class UserService(
         if (!passwordEncoder.matches(dto.password, user.password)) {
             throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
         }
+        // Checked after the password, so the lock is not revealed to someone guessing.
+        if (user.lockedAt != null) {
+            throw RequestException(HttpStatus.FORBIDDEN, "This account is locked")
+        }
         rateLimiter.reset(dto.email)
         user.lastLoginAt = java.time.Instant.now()
         repo.save(user)
