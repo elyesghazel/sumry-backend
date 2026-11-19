@@ -20,7 +20,8 @@ Spring Boot / Kotlin, PostgreSQL, Redis. Every route under `/api` needs a bearer
 | Session | `users/login`, `users/logout`, `users/logout-all`, `users/password`, `users/preferences`, `users/me` (profile, plan, limits, `aiEnabled`) |
 | Registration | `users/register` (takes `inviteCode` in invite mode), `config` (public, `{registrationMode}`) |
 | Account deletion | `DELETE users/me` with `{"password": "..."}` - removes the user and all their data in one transaction |
-| Admin | `admin/users/{id}/plan` - set a user's plan; `admin/invites` - create (`{expiresInDays?, note?}`, the code is shown once), list, `DELETE admin/invites/{id}` revokes (role ADMIN) |
+| Admin | `admin/users` (list, counts only), `admin/stats`, `admin/audit?page=&size=`; per user `admin/users/{id}/plan`, `/lock`, `/unlock`, `/password-reset`, `DELETE admin/users/{id}`; `admin/invites` - create (`{expiresInDays?, note?}`, the code is shown once), list, `DELETE admin/invites/{id}` revokes (role ADMIN) |
+| Password reset | `users/password-reset` (no token) with `{"token": "...", "newPassword": "..."}` - redeems a one-time token from `admin/users/{id}/password-reset` |
 | Accounts | `users/accounts` — CRUD, `reconcile/{id}` books the gap to the real balance; accounts carry a currency |
 | Transactions | `transactions/` list, `transactions/search` (filtered, paged, with sums), `transactions/quick` (natural language), transfers, `cashflow/{account}` |
 | Categories | `category/user`, `category/`, `category/label` |
@@ -63,6 +64,25 @@ needs an unused, unexpired code from `POST /api/admin/invites`, which needs a us
 `UPDATE users SET role = 'ADMIN' WHERE email = '...'`).
 The older `SUMRY_REGISTRATION_ENABLED=true` still means `open` when no mode is set. Signups
 are limited to 5 per client address per hour.
+
+### Admin
+
+Every `/api/admin` route needs role `ADMIN`, checked on the server. The admin views show
+profile fields and counts (accounts, transactions) only, never amounts, balances or notes,
+and there is no way to sign in as another user.
+
+- Lock: login is refused and every token the user holds (sessions and Shortcut tokens) stops
+  working at once. Unlock lets them sign in again; old tokens stay revoked.
+- Password reset: creates a one-time token, valid 24 hours, shown to the admin once (only a
+  hash is stored). Until mail delivery exists the admin passes it on by hand. Redeeming it
+  signs the user out everywhere.
+- An admin cannot lock or delete their own account through these routes.
+- Every admin action (plan, lock, unlock, delete, password reset, invite create/revoke) writes
+  a row to `admin_audit`. When a user is deleted their audit rows stay: the user ids there
+  have no foreign key, so they are kept as bare ids that no longer resolve to a username. The
+  audit detail never holds the username, email or invite note.
+- Signup dates are recorded from V14 on; users created before have none and are left out of
+  the signups-per-week stat.
 
 ### Self-hosting
 
