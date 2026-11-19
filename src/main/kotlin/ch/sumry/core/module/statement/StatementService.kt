@@ -40,6 +40,7 @@ class StatementService(
     private val fx: FxService,
     private val mail: JavaMailSender,
     private val plans: PlanService,
+    private val mailPolicy: StatementMailPolicy,
     @Value("\${spring.mail.host:}") private val mailHost: String,
     @Value("\${sumry.statement.from:}") private val mailFrom: String,
     @Value("\${sumry.statement.scheduled:false}") private val scheduled: Boolean,
@@ -111,12 +112,18 @@ class StatementService(
 
     val mailConfigured: Boolean get() = mailHost.isNotBlank()
 
+    /** A send asked for through the API: own address only (admins excepted), capped per day. */
     fun send(principal: Principal, month: YearMonth, to: String?): String {
         if (!mailConfigured) throw RequestException(HttpStatus.SERVICE_UNAVAILABLE, "Mail is not configured on this instance (SUMRY_MAIL_HOST)")
         val userId = UUID.fromString(principal.name)
         plans.requireStatementEmail(userId)
         val user = users.findById(userId).orElseThrow()
-        val recipient = to?.takeIf { it.isNotBlank() } ?: user.email
+        val recipient = mailPolicy.recipient(user, to)
+        mailPolicy.consume(userId)
+        return deliver(principal, month, recipient)
+    }
+
+    private fun deliver(principal: Principal, month: YearMonth, recipient: String): String {
         val s = statement(principal, month)
         val message = mail.createMimeMessage()
         val helper = MimeMessageHelper(message, "UTF-8")
@@ -136,7 +143,7 @@ class StatementService(
         for (user in users.findAll()) {
             if (!plans.effective(user).limits.statementEmail) continue
             try {
-                send(Principal { user.id.toString() }, month, null)
+                deliver(Principal { user.id.toString() }, month, user.email)
                 log.info("Statement for {} sent to {}", month, user.email)
             } catch (ex: Exception) {
                 log.error("Statement for {} failed: {}", user.email, ex.message)
