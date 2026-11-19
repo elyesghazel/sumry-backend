@@ -41,6 +41,8 @@ no ads: the data lives in your own Postgres.
   (PostFinance, Revolut, or any table with a date and an amount). Nothing is booked until
   you check it; rows already logged are recognised and IBANs are masked.
 - **Rules.** Category rules on the entry text, with a test box and a dry run over history.
+  New accounts start with a small English set of categories and a few starter rules
+  (`lunch` goes to Eating out); your own rules run before them.
 - **Insights.** Detected subscriptions, a month-end forecast, a monthly statement as a page
   or an email on the 1st.
 - **Reconcile.** Bring an account in line with the bank; the gap is booked as an adjustment
