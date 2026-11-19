@@ -1,5 +1,6 @@
 package ch.sumry.core.module.user.service
 
+import ch.sumry.core.module.category.service.DefaultCategories
 import ch.sumry.core.module.user.model.Role
 import ch.sumry.core.module.user.model.User
 import ch.sumry.core.module.user.repo.UserRepository
@@ -17,18 +18,20 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 class BootstrapAdminTest {
 
     private val repo: UserRepository = mockk(relaxed = true)
+    private val defaults: DefaultCategories = mockk(relaxed = true)
 
     @Test
     fun `does nothing without an email`() {
-        assertNull(BootstrapAdmin(repo, " ").create())
+        assertNull(BootstrapAdmin(repo, defaults, " ").create())
         verify(exactly = 0) { repo.save(any<User>()) }
     }
 
     @Test
     fun `does nothing once users exist`() {
         every { repo.count() } returns 1
-        assertNull(BootstrapAdmin(repo, "me@example.com").create())
+        assertNull(BootstrapAdmin(repo, defaults, "me@example.com").create())
         verify(exactly = 0) { repo.save(any<User>()) }
+        verify(exactly = 0) { defaults.seed(any()) }
     }
 
     @Test
@@ -37,7 +40,7 @@ class BootstrapAdminTest {
         val saved = slot<User>()
         every { repo.save(capture(saved)) } answers { saved.captured }
 
-        val password = BootstrapAdmin(repo, "me@example.com").create()
+        val password = BootstrapAdmin(repo, defaults, "me@example.com").create()
 
         assertNotNull(password)
         assertEquals(24, password!!.length)
@@ -47,5 +50,6 @@ class BootstrapAdminTest {
             assertEquals(Role.ADMIN, role)
             assertTrue(BCryptPasswordEncoder().matches(password, this.password))
         }
+        verify(exactly = 1) { defaults.seed(saved.captured) }
     }
 }

@@ -1,6 +1,7 @@
 package ch.sumry.core.module.user.service
 
 import ch.sumry.core.exception.RequestException
+import ch.sumry.core.module.category.service.DefaultCategories
 import ch.sumry.core.module.user.dto.auth.*
 import ch.sumry.core.module.user.mapper.UserMapper
 import ch.sumry.core.module.user.model.User
@@ -32,6 +33,7 @@ class UserService(
     private val registration: RegistrationPolicy,
     private val invites: InviteService,
     private val deletion: UserDeletionService,
+    private val defaultCategories: DefaultCategories,
 ) {
 
     fun getAll(): List<UserResponseDto> = repo.findAll().map { UserMapper.toDto(it) }
@@ -90,6 +92,7 @@ class UserService(
         if (mode == RegistrationMode.INVITE && !invites.redeem(inviteCode!!, saved.id!!)) {
             throw RequestException(HttpStatus.FORBIDDEN, "Invite code is invalid, used or expired")
         }
+        defaultCategories.seed(saved)
 
         return UserMapper.toDto(saved)
     }
