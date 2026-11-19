@@ -142,6 +142,28 @@ set, and only the listed users can call it; everyone else gets 403 and the bridg
 called. `GET /api/users/me` reports `aiEnabled` so the web app can hide the button. Nothing
 else in Sumry needs it.
 
+### What an admin can see
+
+Users with role `ADMIN` manage the instance, not other people's money. Through the API and
+the web app's admin page an admin sees, per user: username, email, signup date, last sign-in,
+plan, the invite used, whether the user is locked, and how many accounts and transactions
+they have. Counts only: no balances, amounts, descriptions, notes or categories. The instance
+stats are totals (users, signups per week, premium users, database size).
+
+An admin can set a user's plan, lock and unlock them (a lock ends their sessions at once),
+delete them with all their data, and issue a one-time password reset. There is no
+impersonation and no way to sign in as another user. Every admin action is written to an
+audit log (`GET /api/admin/audit`) with who did it, to whom and when.
+
+A password reset is the one action that hands an admin a way into an account: whoever uses
+the reset token sets a new password. It is logged, and the user notices because their old
+password stops working.
+
+This protects users from the app, not from the operator. Whoever runs the server and has
+access to the database, its backups or the host can read every row, including all
+transactions. Entries are not end-to-end encrypted. Only use an instance whose operator you
+trust, or run your own.
+
 ## API
 
 Every route under `/api` needs a bearer token from `POST /api/users/login`, except
