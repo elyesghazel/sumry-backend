@@ -37,6 +37,11 @@ class User(
      */
     @Column(name = "token_version", nullable = false)
     var tokenVersion: Int = 0,
+
+    /** Stored plan; see PlanService for what it means while limits are off. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    var plan: Plan = Plan.FREE,
 ) {
 
     constructor() : this(UUID.randomUUID(), "", "", "", mutableListOf(), null)
