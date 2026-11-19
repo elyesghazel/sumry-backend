@@ -35,6 +35,9 @@ class UserDeletionService(private val jdbc: JdbcTemplate) {
         // Invite codes keep their row for the admin's list; the user references are cleared.
         jdbc.update("UPDATE invite_codes SET created_by = NULL WHERE created_by = ?", userId)
         jdbc.update("UPDATE invite_codes SET used_by = NULL WHERE used_by = ?", userId)
+        jdbc.update("DELETE FROM password_reset_tokens WHERE user_id = ?", userId)
+        // admin_audit rows are kept: their user ids have no foreign key and simply stop
+        // resolving to a username, so the history of admin actions survives the deletion.
         jdbc.update("DELETE FROM users WHERE id = ?", userId)
     }
 }
