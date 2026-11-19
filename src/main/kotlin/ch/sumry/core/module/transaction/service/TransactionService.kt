@@ -135,14 +135,6 @@ class TransactionService(
         )
     }
 
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
-    fun getByUserIdAdmin(userId: UUID, principal: Principal): List<TransactionResponseDTO> {
-
-        val transactions = transactionRepository.findByUserAccount_User_Id(userId)
-
-        return TransactionMapper.toDtoList(transactions)
-    }
-
     // ------------------------------------------------------------ quick entry
 
     /**
