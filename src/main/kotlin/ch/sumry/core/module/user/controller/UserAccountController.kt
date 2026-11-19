@@ -9,7 +9,6 @@ import ch.sumry.core.module.user.service.UserAccountService
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
-import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import java.security.Principal
 import java.util.*
@@ -18,12 +17,6 @@ import java.util.*
 @RestController
 @RequestMapping("/api/users/accounts")
 class UserAccountController(private val service: UserAccountService) {
-
-    @Tag(name = "User Accounts", description = "Banking Accounts like cash, card, savings")
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/all")
-    fun getAll(): List<UserAccountResponseDto> = service.getAll()
-
 
     @Tag(name = "Users", description = "Get all banking accounts from specific User")
     @GetMapping("/user/{userId}")

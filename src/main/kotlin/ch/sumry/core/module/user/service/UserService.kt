@@ -34,8 +34,6 @@ class UserService(
     private val deletion: UserDeletionService,
 ) {
 
-    fun getAll(): List<UserResponseDto> = repo.findAll().map { UserMapper.toDto(it) }
-
     fun getById(id: UUID, principal: Principal?): UserResponseDto {
 
         val providedUserId = UUID.fromString(principal?.name)

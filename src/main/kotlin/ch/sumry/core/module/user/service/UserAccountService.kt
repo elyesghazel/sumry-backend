@@ -14,7 +14,6 @@ import ch.sumry.core.module.user.repo.UserRepository
 import jakarta.transaction.Transactional
 import ch.sumry.core.types.money
 import org.springframework.http.HttpStatus
-import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Service
 import java.security.Principal
 import java.util.*
@@ -34,9 +33,6 @@ class UserAccountService(
         val base = transactionService.baseCurrency(userId)
         return accounts.map { UserAccountMapper.toDto(it, base, fx.convert(it.currentBalance ?: java.math.BigDecimal.ZERO, it.currency, base)) }
     }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    fun getAll(): List<UserAccountResponseDto> = UserAccountMapper.toDtoList(repo.findAll())
 
     fun getAllFromUser(userId: UUID, principal: Principal): List<UserAccountResponseDto> {
         // check if userid from principal is matching with userid

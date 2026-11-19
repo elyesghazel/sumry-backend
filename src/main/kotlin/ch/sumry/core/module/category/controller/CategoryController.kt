@@ -4,7 +4,6 @@ import ch.sumry.core.module.category.dto.*
 import ch.sumry.core.module.category.service.CategoryService
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
-import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import java.security.Principal
 
@@ -12,10 +11,6 @@ import java.security.Principal
 @RestController
 @RequestMapping("/api/category")
 class CategoryController (private val categoryService: CategoryService) {
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/admin")
-    fun getAll(): List<CategoryResponseDTO> = categoryService.getAll()
 
     @GetMapping("/user")
     fun getAllFromUser(principal: Principal): List<CategoryResponseDTO> =

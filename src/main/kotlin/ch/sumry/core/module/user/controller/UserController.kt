@@ -8,7 +8,6 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import java.security.Principal
 import java.util.*
@@ -34,10 +33,6 @@ class UserController(private val service: UserService) {
         // return 200 if ok
         return ResponseEntity.ok(userDto)
     }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping
-    fun getAll(): List<UserResponseDto> = service.getAll()
 
     @GetMapping("/{id}")
     fun getById(@PathVariable id: String, principal: Principal): UserResponseDto =

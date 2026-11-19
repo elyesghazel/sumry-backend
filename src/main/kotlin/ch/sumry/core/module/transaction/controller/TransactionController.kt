@@ -14,7 +14,6 @@ import ch.sumry.core.module.transaction.dto.TransferUpdateDTO
 import ch.sumry.core.module.transaction.service.TransactionService
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
-import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import org.springframework.format.annotation.DateTimeFormat
 import java.math.BigDecimal
@@ -26,12 +25,6 @@ import java.util.*
 @RestController
 @RequestMapping("/api/transactions")
 class TransactionController(private val service: TransactionService) {
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/user/{userId}")
-    fun getAllFromUser(@PathVariable userId: String, principal: Principal): List<TransactionResponseDTO> {
-        return service.getByUserIdAdmin(UUID.fromString(userId), principal)
-    }
 
     @GetMapping("/")
     fun getAllFromUserPrincipal(principal: Principal): List<TransactionResponseDTO> {

@@ -211,34 +211,14 @@ class UserControllerIntegrationTest {
     }
 
     // =========================================================================
-    // D. SECURED GET ALL (Role-Based Check im Controller)
+    // D. NO CROSS-USER LIST
     // =========================================================================
 
     @Test
     @WithMockUser(roles = ["ADMIN"])
-    fun `getAll should return 200 OK for ADMIN role (PreAuthorize)`() {
-        // ARRANGE
-        every { userService.getAll() } returns emptyList()
-
-        // ACT & ASSERT
+    fun `there is no route listing every user, not even for an ADMIN`() {
         mockMvc.perform(get("/api/users")
             .contentType(MediaType.APPLICATION_JSON))
-            .andExpect(status().isOk)
-            .andExpect(content().json("[]")) // Leere Liste erwartet
-
-        verify(exactly = 1) { userService.getAll() }
-    }
-
-    @Test
-    @WithMockUser(roles = ["USER"])
-    fun `getAll should return 403 Forbidden for non-ADMIN roles (PreAuthorize)`() {
-        // ARRANGE: nothing bcs controller preauth
-
-        // ACT & ASSERT
-        mockMvc.perform(get("/api/users")
-            .contentType(MediaType.APPLICATION_JSON))
-            .andExpect(status().isForbidden)
-
-        verify(exactly = 0) { userService.getAll() }
+            .andExpect(status().isNotFound)
     }
 }

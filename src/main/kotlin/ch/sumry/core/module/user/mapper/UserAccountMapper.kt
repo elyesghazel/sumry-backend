@@ -29,7 +29,4 @@ object UserAccountMapper {
             currency = dto.currency.trim().uppercase().ifEmpty { "CHF" },
             spending = dto.spending,
         )
-
-    fun toDtoList(entities: List<UserAccount>): List<UserAccountResponseDto> =
-        entities.map { toDto(it) }
 }
