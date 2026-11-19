@@ -167,7 +167,8 @@ username, email, role, plan, active or locked, signup date, last sign-in, the fi
 characters of the invite code they used, and how many accounts and transactions they have.
 Counts only: no balances, amounts, descriptions, notes or categories. `GET /api/admin/stats`
 returns totals: users, locked users, premium users, signups per week over the last 12 weeks,
-and the database size.
+and the database size. Outside `/api/admin` the role grants nothing: every other route
+returns only the caller's own data, and a test calls every route as an admin to check it.
 
 What an admin can do:
 
