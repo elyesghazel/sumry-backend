@@ -1,30 +1,30 @@
 # -----------------------------------------------------------------------------
-# STAGE 1: Build (Java 21, mit Gradle Cache & Tools)
+# STAGE 1: Build (Java 21, with Gradle cache and tools)
 # -----------------------------------------------------------------------------
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /app
 
-# Tools installieren
+# Install build tools
 RUN apk add --no-cache bash curl unzip dos2unix
 
-# Gradle Cache Verzeichnis
+# Gradle cache directory
 ENV GRADLE_USER_HOME=/gradle-cache
 RUN mkdir -p /gradle-cache
 
-# Gradle Dateien kopieren
+# Copy Gradle files
 COPY gradlew .
 COPY gradle gradle
 COPY build.gradle.kts .
 COPY settings.gradle.kts .
 
-# Line-Endings fixen & ausführbar machen
+# Fix line endings and make the wrapper executable
 RUN dos2unix gradlew || true
 RUN chmod +x gradlew
 
-# Source Code kopieren
+# Copy source code
 COPY src src
 
-# Build: BootJar, Gradle Wrapper Cache nutzen
+# Build the boot jar using the Gradle cache
 RUN ./gradlew bootJar -x test --no-daemon --gradle-user-home $GRADLE_USER_HOME
 
 # -----------------------------------------------------------------------------
@@ -33,7 +33,7 @@ RUN ./gradlew bootJar -x test --no-daemon --gradle-user-home $GRADLE_USER_HOME
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Jar kopieren
+# Copy the jar
 COPY --from=build /app/build/libs/*.jar app.jar
 
 # The API needs nothing root can do; a compromise of the JVM should not own the container.
