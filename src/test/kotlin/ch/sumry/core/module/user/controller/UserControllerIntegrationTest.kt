@@ -69,7 +69,7 @@ class UserControllerIntegrationTest {
     fun `register should create user and return 200 OK`() {
         val createDto = UserCreateDto("newuser", "new@example.com", "SecurePassword12")
 
-        every { userService.register(any()) } returns UserResponseDto(UUID.randomUUID(), "newuser", "new@example.com")
+        every { userService.register(any(), any()) } returns UserResponseDto(UUID.randomUUID(), "newuser", "new@example.com")
 
         mockMvc.perform(post("/api/users/register")
             .with(csrf()) // Benötigt für POST, da Security zwar deaktiviert ist, aber MockMvc den Filter simulieren kann
@@ -78,13 +78,13 @@ class UserControllerIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.username").value("newuser"))
 
-        verify(exactly = 1) { userService.register(any()) }
+        verify(exactly = 1) { userService.register(any(), any()) }
     }
 
     @Test
     fun `register should return 409 Conflict if user exists`() {
         val createDto = UserCreateDto("exist", "exist@e.com", "SecurePassword12")
-        every { userService.register(any()) } throws RequestException(HttpStatus.CONFLICT, "Username already taken")
+        every { userService.register(any(), any()) } throws RequestException(HttpStatus.CONFLICT, "Username already taken")
 
         mockMvc.perform(post("/api/users/register")
             .with(csrf())

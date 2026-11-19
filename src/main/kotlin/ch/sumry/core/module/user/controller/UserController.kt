@@ -44,8 +44,8 @@ class UserController(private val service: UserService) {
         service.getById(UUID.fromString(id), principal)
 
     @PostMapping("/register")
-    fun register(@Valid @RequestBody dto: UserCreateDto): UserResponseDto =
-        service.register(dto)
+    fun register(@Valid @RequestBody dto: UserCreateDto, request: HttpServletRequest): UserResponseDto =
+        service.register(dto, request)
 
     @PutMapping("/{userId}")
     fun update(@Valid @RequestBody dto: UserUpdateDto, @PathVariable userId: String, principal: Principal): UserResponseDto =

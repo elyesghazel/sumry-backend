@@ -14,5 +14,9 @@ data class UserCreateDto(
 
     @field:NotBlank(message = "Password is required")
     @field:Size(min = 12, message = "Password must be at least 12 characters long")
-    val password: String
+    val password: String,
+
+    /** Required when registration is invite-only, ignored otherwise. */
+    @field:Size(max = 64)
+    val inviteCode: String? = null,
 )
