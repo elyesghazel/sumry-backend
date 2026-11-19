@@ -217,7 +217,7 @@ Every route under `/api` needs a bearer token from `POST /api/users/login`, exce
 | Rules | `rules`, `rules/test`, `rules/apply?dryRun=` |
 | Insights | `insights/subscriptions`, `insights/forecast` |
 | Import / export | `import/preview`, `import/check` (AI, optional), `import/commit`, `export/transactions.csv` and `.json` |
-| Statement | `statement?month=`, `statement/html`, `statement/send` (needs `SUMRY_MAIL_*`) |
+| Statement | `statement?month=`, `statement/html`, `statement/send` (needs `SUMRY_MAIL_*`; to your own address only, 3 times a day)  |
 | Shortcut | `shortcut/categories`, `shortcut/log` with a token from `users/shortcut-token` |
 | FX | `fx?base=`: ECB rates via frankfurter.dev, cached in Redis |
 
