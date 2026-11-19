@@ -32,8 +32,9 @@ class SecurityConfig(
                 it
                     // CORS preflight must reach the browser unauthenticated.
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                    // The only two endpoints reachable without a token.
+                    // The only endpoints reachable without a token.
                     .requestMatchers(HttpMethod.POST, "/api/users/register", "/api/users/login").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/config").permitAll()
                     // Liveness for Traefik/Uptime Kuma. Other actuator endpoints stay protected.
                     .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                     // API docs, only served at all when springdoc is explicitly enabled.
