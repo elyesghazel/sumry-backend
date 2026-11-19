@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service
 import java.time.Duration
 
 /**
- * Bounds online password guessing. Two counters per window: one per client address so a
+ * Bounds online password guessing and mass signups. Two counters per window: one per client address so a
  * single machine cannot hammer many accounts, one per email so one account cannot be
  * attacked from many addresses.
  *
@@ -37,6 +37,20 @@ class LoginRateLimiter(private val redis: StringRedisTemplate) {
         }
     }
 
+    /**
+     * Signups are counted per client address only: there is no account yet to count
+     * against. The window is longer because nobody signs up many times an hour.
+     */
+    fun signupRetryAfterSeconds(request: HttpServletRequest): Long? {
+        return try {
+            val key = "auth:rl:signup:ip:${clientAddress(request)}"
+            if (hit(key, SIGNUP_WINDOW) > SIGNUP_IP_LIMIT) maxOf(redis.getExpire(key) ?: 0L, 1L) else null
+        } catch (ex: Exception) {
+            log.warn("Signup rate limiter unavailable, allowing the attempt: {}", ex.message)
+            null
+        }
+    }
+
     /** A correct password clears the per-account counter; the address counter stays. */
     fun reset(email: String) {
         try {
@@ -46,9 +60,9 @@ class LoginRateLimiter(private val redis: StringRedisTemplate) {
         }
     }
 
-    private fun hit(key: String): Long {
+    private fun hit(key: String, window: Duration = WINDOW): Long {
         val count = redis.opsForValue().increment(key) ?: 1L
-        if (count == 1L) redis.expire(key, WINDOW)
+        if (count == 1L) redis.expire(key, window)
         return count
     }
 
@@ -68,5 +82,7 @@ class LoginRateLimiter(private val redis: StringRedisTemplate) {
         private val WINDOW: Duration = Duration.ofMinutes(15)
         private const val IP_LIMIT = 30L
         private const val EMAIL_LIMIT = 10L
+        private val SIGNUP_WINDOW: Duration = Duration.ofHours(1)
+        private const val SIGNUP_IP_LIMIT = 5L
     }
 }
