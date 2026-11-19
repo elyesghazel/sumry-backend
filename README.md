@@ -17,7 +17,7 @@ Spring Boot / Kotlin, PostgreSQL, Redis. Every route under `/api` needs a bearer
 
 | Area | Routes |
 |---|---|
-| Session | `users/login`, `users/logout`, `users/logout-all`, `users/password`, `users/preferences`, `users/me` (profile, plan, limits, `aiEnabled`) |
+| Session | `users/login`, `users/logout`, `users/logout-all`, `users/password`, `users/preferences`, `users/me` (profile, `role`, plan, limits, `aiEnabled`) |
 | Registration | `users/register` (takes `inviteCode` in invite mode), `config` (public, `{registrationMode}`) |
 | Account deletion | `DELETE users/me` with `{"password": "..."}` - removes the user and all their data in one transaction |
 | Admin | `admin/users` (list, counts only), `admin/stats`, `admin/audit?page=&size=`; per user `admin/users/{id}/plan`, `/lock`, `/unlock`, `/password-reset`, `DELETE admin/users/{id}`; `admin/invites` - create (`{expiresInDays?, note?}`, the code is shown once), list, `DELETE admin/invites/{id}` revokes (role ADMIN) |
