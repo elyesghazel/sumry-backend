@@ -1,5 +1,6 @@
 package ch.sumry.core.module.porting
 
+import ch.sumry.core.module.plan.PlanService
 import ch.sumry.core.module.transaction.mapper.TransactionMapper
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.HttpHeaders
@@ -13,18 +14,31 @@ import java.util.*
 
 @RestController
 @RequestMapping("/api")
-class PortingController(private val service: PortingService, private val checker: ImportChecker) {
+class PortingController(
+    private val service: PortingService,
+    private val checker: ImportChecker,
+    private val plans: PlanService,
+) {
 
     /** Parse a statement and see what would be booked, what is already there, and what lacks a category. */
     @PostMapping("/import/preview")
-    fun preview(@RequestBody req: ImportPreviewRequest, principal: Principal): ImportPreviewDTO = service.preview(req, principal)
+    fun preview(@RequestBody req: ImportPreviewRequest, principal: Principal): ImportPreviewDTO {
+        plans.requireStatementImport(UUID.fromString(principal.name))
+        return service.preview(req, principal)
+    }
 
     /** Ask Claude about the rows the preview could not match; suggestions only, nothing is written. */
     @PostMapping("/import/check")
-    fun check(@RequestBody req: ImportCheckRequest, principal: Principal): ImportCheckDTO = checker.check(req, principal)
+    fun check(@RequestBody req: ImportCheckRequest, principal: Principal): ImportCheckDTO {
+        plans.requireStatementImport(UUID.fromString(principal.name))
+        return checker.check(req, principal)
+    }
 
     @PostMapping("/import/commit")
-    fun commit(@RequestBody req: ImportCommitRequest, principal: Principal): ImportCommitDTO = service.commit(req, principal)
+    fun commit(@RequestBody req: ImportCommitRequest, principal: Principal): ImportCommitDTO {
+        plans.requireStatementImport(UUID.fromString(principal.name))
+        return service.commit(req, principal)
+    }
 
     @GetMapping("/export/transactions.csv", produces = ["text/csv"])
     fun exportCsv(
