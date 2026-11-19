@@ -45,7 +45,7 @@ class UserServiceUnitTest {
     @BeforeEach
     fun setUp() {
         // 1. Service initialisieren
-        userService = UserService(userRepo, jwtService, rateLimiter, revocation, RegistrationPolicy("open", false), invites)
+        userService = UserService(userRepo, jwtService, rateLimiter, revocation, RegistrationPolicy("open", false), invites, mockk(relaxed = true))
 
         // 2. Mock-Principal-Objekte initialisieren (Principal.name = UUID)
         ownerPrincipal = mockk<Principal>().also {
