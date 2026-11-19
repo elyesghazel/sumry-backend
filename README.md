@@ -13,7 +13,7 @@
   <img alt="postgres" src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white">
 </p>
 
-<p><a href="#self-host"><b>Self-host</b></a> · <a href="#features"><b>Features</b></a> · <a href="#configuration"><b>Configuration</b></a> · <a href="#api"><b>API</b></a> · <a href="#development"><b>Development</b></a></p>
+<p><a href="#self-host"><b>Self-host</b></a> · <a href="#hosted"><b>Hosted</b></a> · <a href="#features"><b>Features</b></a> · <a href="#configuration"><b>Configuration</b></a> · <a href="#api"><b>API</b></a> · <a href="#development"><b>Development</b></a></p>
 
 </div>
 
@@ -99,6 +99,20 @@ entries, budgets, planned items, rules and goals. It needs `SUMRY_REGISTRATION_M
 SUMRY_URL=http://localhost ./deploy/demo-seed.sh
 ```
 
+## Hosted
+
+Elyes Ghazel runs a hosted Sumry for people who don't want to run a server. It is the same
+code as this repository, with plan limits switched on:
+
+| Plan | Price | |
+|---|---|---|
+| Free | 0 | 2 accounts, no statement import |
+| Premium | 2 CHF / month or 18 CHF / year | everything |
+| Founder Lifetime | 29 CHF once | everything, for the first 50 users only |
+
+Payment is manual via TWINT for now; after payment the admin switches the account to
+Premium. A self-hosted instance has none of this: every feature is free.
+
 ## Configuration
 
 Everything is set through environment variables. In the self-host stack they go in
@@ -131,8 +145,12 @@ Everything is set through environment variables. In the self-host stack they go 
 Off unless `SUMRY_LIMITS_ENABLED=true`, and off is what a self-hosted instance wants: every
 user then has every feature. With limits on, `FREE` users get at most
 `SUMRY_FREE_MAX_ACCOUNTS` accounts, no statement import and no statement email. Blocked calls
-answer 403 `{"error":"plan_limit","limit":"accounts|statement_import|statement_email"}`. An
-admin sets a user's plan with `POST /api/admin/users/{id}/plan`. There is no payment flow.
+answer 403 `{"error":"plan_limit","limit":"accounts|statement_import|statement_email"}`.
+
+This is what the [hosted instance](#hosted) uses: Free with 2 accounts and no import,
+Premium for 2 CHF a month or 18 CHF a year, Founder Lifetime for 29 CHF (first 50 users).
+There is no payment code. Payment happens outside the app (TWINT), and an admin sets the
+user's plan with `POST /api/admin/users/{id}/plan`.
 
 ### AI check on imports
 
@@ -212,7 +230,12 @@ to report a vulnerability.
 
 ## License
 
-AGPL-3.0. If you run a modified Sumry as a service for others, you share your changes. See
-[LICENSE](LICENSE).
+[AGPL-3.0](LICENSE). You may self-host Sumry, change it and use it commercially. If you
+modify it and offer it to others as a service over a network, you have to publish the source
+of your modified version under the same license.
+
+The name "Sumry" and the logo are not part of the license: forks and public hosts use their
+own name. See [TRADEMARK.md](TRADEMARK.md). Contributions are accepted under the
+[CLA in CONTRIBUTING.md](CONTRIBUTING.md#contributor-license-agreement).
 
 <div align="right"><a href="#readme-top">back to top ↑</a></div>
