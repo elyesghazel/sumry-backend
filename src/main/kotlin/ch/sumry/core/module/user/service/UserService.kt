@@ -174,10 +174,9 @@ class UserService(
             throw RequestException(HttpStatus.TOO_MANY_REQUESTS, "Too many sign-in attempts. Try again in $retryAfter seconds.")
         }
         val user = repo.findByEmail(dto.email)
-            ?: throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
-
         val passwordEncoder = org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder()
-        if (!passwordEncoder.matches(dto.password, user.password)) {
+        if (user == null || !passwordEncoder.matches(dto.password, user.password)) {
+            rateLimiter.recordFailure(request, dto.email)
             throw RequestException(HttpStatus.UNAUTHORIZED, "Invalid email or password")
         }
         // Checked after the password, so the lock is not revealed to someone guessing.

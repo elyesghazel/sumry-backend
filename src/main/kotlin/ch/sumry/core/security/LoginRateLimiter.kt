@@ -18,22 +18,32 @@ import java.time.Duration
 class LoginRateLimiter(private val redis: StringRedisTemplate) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** Seconds until another attempt is allowed, or null when the attempt may proceed. */
+    /**
+     * Seconds until another attempt is allowed, or null when the attempt may proceed. Only
+     * reads the counters: an attempt counts once [recordFailure] reports it as wrong, so
+     * many correct sign-ins behind one shared address never lock it.
+     */
     fun retryAfterSeconds(request: HttpServletRequest, email: String): Long? {
         return try {
-            val ip = clientAddress(request)
-            val ipHits = hit("auth:rl:ip:$ip")
-            val emailHits = hit("auth:rl:email:${email.trim().lowercase()}")
-            if (ipHits > IP_LIMIT || emailHits > EMAIL_LIMIT) {
-                val ttl = maxOf(
-                    redis.getExpire("auth:rl:ip:$ip") ?: 0L,
-                    redis.getExpire("auth:rl:email:${email.trim().lowercase()}") ?: 0L,
-                )
+            val ipKey = ipKey(request)
+            val emailKey = emailKey(email)
+            if (count(ipKey) >= IP_LIMIT || count(emailKey) >= EMAIL_LIMIT) {
+                val ttl = maxOf(redis.getExpire(ipKey) ?: 0L, redis.getExpire(emailKey) ?: 0L)
                 maxOf(ttl, 1L)
             } else null
         } catch (ex: Exception) {
             log.warn("Login rate limiter unavailable, allowing the attempt: {}", ex.message)
             null
+        }
+    }
+
+    /** A failed sign-in counts against both the client address and the email. */
+    fun recordFailure(request: HttpServletRequest, email: String) {
+        try {
+            hit(ipKey(request))
+            hit(emailKey(email))
+        } catch (ex: Exception) {
+            log.warn("Could not record failed sign-in: {}", ex.message)
         }
     }
 
@@ -54,11 +64,17 @@ class LoginRateLimiter(private val redis: StringRedisTemplate) {
     /** A correct password clears the per-account counter; the address counter stays. */
     fun reset(email: String) {
         try {
-            redis.delete("auth:rl:email:${email.trim().lowercase()}")
+            redis.delete(emailKey(email))
         } catch (ex: Exception) {
             log.warn("Could not reset login counter: {}", ex.message)
         }
     }
+
+    private fun ipKey(request: HttpServletRequest) = "auth:rl:ip:${clientAddress(request)}"
+
+    private fun emailKey(email: String) = "auth:rl:email:${email.trim().lowercase()}"
+
+    private fun count(key: String): Long = redis.opsForValue().get(key)?.toLongOrNull() ?: 0L
 
     private fun hit(key: String, window: Duration = WINDOW): Long {
         val count = redis.opsForValue().increment(key) ?: 1L
