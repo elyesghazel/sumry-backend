@@ -10,9 +10,12 @@ import ch.sumry.core.security.LoginRateLimiter
 import ch.sumry.core.security.TokenClaims
 import ch.sumry.core.security.TokenRevocationService
 import jakarta.servlet.http.HttpServletRequest
-import org.springframework.beans.factory.annotation.Value
+import ch.sumry.core.module.registration.InviteService
+import ch.sumry.core.module.registration.RegistrationMode
+import ch.sumry.core.module.registration.RegistrationPolicy
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.security.Principal
 import java.util.*
 
@@ -23,11 +26,11 @@ class UserService(
     private val rateLimiter: LoginRateLimiter,
     private val revocation: TokenRevocationService,
     /**
-     * Self-registration is off by default. The API is reachable from the internet, so an
+     * Self-registration is closed by default. The API is reachable from the internet, so an
      * open register endpoint lets anyone create accounts on a personal instance.
      */
-    @Value("\${sumry.registration.enabled:false}")
-    private val registrationEnabled: Boolean,
+    private val registration: RegistrationPolicy,
+    private val invites: InviteService,
 ) {
 
     fun getAll(): List<UserResponseDto> = repo.findAll().map { UserMapper.toDto(it) }
@@ -44,9 +47,26 @@ class UserService(
         }
         return UserMapper.toDto(user)
     }
-    fun register(dto: UserCreateDto): UserResponseDto {
-        if (!registrationEnabled) {
+    /**
+     * In invite mode the code is checked before the duplicate checks, so without a valid
+     * code the endpoint says nothing about which usernames or emails exist. It is redeemed
+     * in the same transaction that creates the user: a code that was taken in the meantime
+     * rolls the new account back.
+     */
+    @Transactional
+    fun register(dto: UserCreateDto, request: HttpServletRequest? = null): UserResponseDto {
+        val mode = registration.mode
+        if (mode == RegistrationMode.CLOSED) {
             throw RequestException(HttpStatus.FORBIDDEN, "Registration is disabled on this instance")
+        }
+        val inviteCode = dto.inviteCode?.takeIf { it.isNotBlank() }
+        if (mode == RegistrationMode.INVITE) {
+            if (inviteCode == null) {
+                throw RequestException(HttpStatus.FORBIDDEN, "An invite code is required to register")
+            }
+            if (!invites.isRedeemable(inviteCode)) {
+                throw RequestException(HttpStatus.FORBIDDEN, "Invite code is invalid, used or expired")
+            }
         }
         if (repo.existsByUsername(dto.username)) {
             throw RequestException(HttpStatus.CONFLICT, "Username already taken")
@@ -61,9 +81,13 @@ class UserService(
             password = dto.password
         )
         user.encodePassword(dto.password)
-        repo.save(user)
+        val saved = repo.saveAndFlush(user)
 
-        return UserMapper.toDto(user)
+        if (mode == RegistrationMode.INVITE && !invites.redeem(inviteCode!!, saved.id!!)) {
+            throw RequestException(HttpStatus.FORBIDDEN, "Invite code is invalid, used or expired")
+        }
+
+        return UserMapper.toDto(saved)
     }
 
 
