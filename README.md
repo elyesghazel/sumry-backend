@@ -106,7 +106,7 @@ code as this repository, with plan limits switched on:
 
 | Plan | Price | |
 |---|---|---|
-| Free | 0 | 2 accounts, no statement import |
+| Free | 0 | 2 accounts, no statement import, no statement email |
 | Premium | 2 CHF / month or 18 CHF / year | everything |
 | Founder Lifetime | 29 CHF once | everything, for the first 50 users only |
 
@@ -147,7 +147,8 @@ user then has every feature. With limits on, `FREE` users get at most
 `SUMRY_FREE_MAX_ACCOUNTS` accounts, no statement import and no statement email. Blocked calls
 answer 403 `{"error":"plan_limit","limit":"accounts|statement_import|statement_email"}`.
 
-This is what the [hosted instance](#hosted) uses: Free with 2 accounts and no import,
+This is what the [hosted instance](#hosted) uses: Free with 2 accounts, no import and no
+statement email,
 Premium for 2 CHF a month or 18 CHF a year, Founder Lifetime for 29 CHF (first 50 users).
 There is no payment code. Payment happens outside the app (TWINT), and an admin sets the
 user's plan with `POST /api/admin/users/{id}/plan`.
