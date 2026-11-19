@@ -61,7 +61,7 @@ data class ImportPreviewDTO(
     val computedClosingBalance: BigDecimal? = null,
     /** True when opening + rows = closing, false when they differ, null when the file has no balances. */
     val balanceOk: Boolean? = null,
-    /** Whether POST /api/import/check (Claude) is configured on this server. */
+    /** Whether POST /api/import/check (Claude) is configured on this server and allowed for this user. */
     val aiCheckAvailable: Boolean = false,
 )
 

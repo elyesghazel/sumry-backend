@@ -104,7 +104,7 @@ class PortingService(
             statementOpeningBalance = parsed.openingBalance,
             computedClosingBalance = computed,
             balanceOk = if (computed != null && closing != null) computed.compareTo(closing) == 0 else null,
-            aiCheckAvailable = checker.available,
+            aiCheckAvailable = checker.enabledFor(userId),
         )
     }
 

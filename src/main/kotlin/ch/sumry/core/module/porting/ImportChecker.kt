@@ -1,5 +1,6 @@
 package ch.sumry.core.module.porting
 
+import ch.sumry.core.ai.AiAccess
 import ch.sumry.core.exception.RequestException
 import ch.sumry.core.module.category.repo.CategoryRepository
 import ch.sumry.core.module.transaction.repo.TransactionRepository
@@ -33,7 +34,8 @@ import java.util.*
  * booked or deleted. Bank text is treated as data; nothing in it can change the instructions.
  *
  * Claude runs headless on the host (`claude -p` with no tools, through ~/agents/sumry-ai-bridge),
- * so no API key is involved. Off unless SUMRY_AI_BRIDGE_URL and SUMRY_AI_BRIDGE_TOKEN are set.
+ * so no API key is involved. Off unless SUMRY_AI_BRIDGE_URL and SUMRY_AI_BRIDGE_TOKEN are set, and
+ * only for the users on SUMRY_AI_USERS (see [AiAccess]).
  */
 @Service
 class ImportChecker(
@@ -43,6 +45,7 @@ class ImportChecker(
     private val transactions: TransactionRepository,
     private val categories: CategoryRepository,
     private val json: ObjectMapper,
+    private val access: AiAccess,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val zone: ZoneId = ZoneId.systemDefault()
@@ -50,11 +53,16 @@ class ImportChecker(
 
     val available: Boolean get() = bridgeUrl.isNotBlank() && bridgeToken.isNotBlank()
 
+    /** Whether this user can run the check: on the allowlist and the bridge is configured. */
+    fun enabledFor(userId: UUID): Boolean = available && access.isAllowed(userId)
+
     fun check(req: ImportCheckRequest, principal: Principal): ImportCheckDTO {
+        val userId = UUID.fromString(principal.name)
+        // Before anything else, so a caller off the allowlist learns nothing and never reaches the bridge.
+        access.requireAllowed(userId)
         if (!available) throw RequestException(HttpStatus.SERVICE_UNAVAILABLE, "The Claude check is not configured on this server")
         if (req.rows.isEmpty()) return ImportCheckDTO(emptyList(), emptyList(), "Nothing left to check.")
         if (req.rows.size > 300) throw RequestException(HttpStatus.BAD_REQUEST, "At most 300 rows per check")
-        val userId = UUID.fromString(principal.name)
         val account = accounts.findById(req.accountId).orElseThrow { RequestException(HttpStatus.NOT_FOUND, "Account not found") }
         if (account.user?.id != userId) throw RequestException(HttpStatus.FORBIDDEN, "Access denied")
 
