@@ -29,6 +29,8 @@ repositories {
 
 extra["snippetsDir"] = file("build/generated-snippets")
 extra["springModulithVersion"] = "1.4.4"
+// 1.21.3 (the Boot default) speaks Docker API 1.32, which Docker 29 refuses.
+extra["testcontainers.version"] = "1.21.4"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -59,6 +61,10 @@ dependencies {
 	testImplementation("org.springframework.restdocs:spring-restdocs-mockmvc")
 	testImplementation("org.springframework.security:spring-security-test")
     testImplementation("io.mockk:mockk:${mockkVersion}")
+    // Integration tests against real Postgres and Redis; skipped when no Docker is reachable.
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:postgresql")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     // Statement PDFs (Apache-2.0, ~4 MB with fontbox); text extraction only.
