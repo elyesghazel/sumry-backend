@@ -85,6 +85,19 @@ With plan limits on, an optional `legal/premium.md` (see `premium.example.md`) h
   them. Only Caddy publishes ports.
 - `/actuator` and the API docs are not routed by Caddy.
 
+## Client address and rate limits
+
+Sign-in and signup are limited per client address. Caddy replaces any `X-Forwarded-For` a
+client sends with the address it saw, and the stack sets `SUMRY_TRUSTED_PROXY_HOPS=1`, so the
+API takes the rightmost entry. A client cannot pick its own address this way.
+
+Behind another proxy (your own TLS proxy, a CDN) every request reaches Caddy from that proxy,
+so all clients share one address. Either tell Caddy to trust it (`trusted_proxies` in the
+Caddyfile) and set `SUMRY_TRUSTED_PROXY_HOPS=2`, or, behind Cloudflare, set
+`SUMRY_CLIENT_IP_HEADER=CF-Connecting-IP`. Only use the header when the origin accepts
+connections from Cloudflare's IP ranges alone: anyone who can reach it directly can send any
+value in that header.
+
 ## Running a second instance on the same host
 
 The compose project is called `sumry`. For another stack next to it, give it its own
