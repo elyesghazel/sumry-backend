@@ -1,5 +1,6 @@
 package ch.sumry.core.module.plan
 
+import ch.sumry.core.module.admin.AdminAuditService
 import ch.sumry.core.module.porting.ImportChecker
 import ch.sumry.core.module.porting.PortingController
 import ch.sumry.core.module.porting.PortingService
@@ -43,6 +44,7 @@ class PlanControllersTest {
     @TestConfiguration
     class Config {
         @Bean fun planService(): PlanService = mockk(relaxed = true)
+        @Bean fun adminAuditService(): AdminAuditService = mockk(relaxed = true)
         @Bean fun portingService(): PortingService = mockk(relaxed = true)
         @Bean fun importChecker(): ImportChecker = mockk(relaxed = true)
     }
