@@ -12,12 +12,15 @@ Tone: grounded, confident, human.
 ## API
 
 Spring Boot / Kotlin, PostgreSQL, Redis. Every route under `/api` needs a bearer token from
-`POST /api/users/login` except `register` (off by default) and `/actuator/health`.
+`POST /api/users/login` except `register` (closed by default), `GET /api/config` and
+`/actuator/health`.
 
 | Area | Routes |
 |---|---|
 | Session | `users/login`, `users/logout`, `users/logout-all`, `users/password`, `users/preferences`, `users/me` (profile, plan, limits, `aiEnabled`) |
-| Admin | `admin/users/{id}/plan` - set a user's plan (role ADMIN) |
+| Registration | `users/register` (takes `inviteCode` in invite mode), `config` (public, `{registrationMode}`) |
+| Account deletion | `DELETE users/me` with `{"password": "..."}` - removes the user and all their data in one transaction |
+| Admin | `admin/users/{id}/plan` - set a user's plan; `admin/invites` - create (`{expiresInDays?, note?}`, the code is shown once), list, `DELETE admin/invites/{id}` revokes (role ADMIN) |
 | Accounts | `users/accounts` — CRUD, `reconcile/{id}` books the gap to the real balance; accounts carry a currency |
 | Transactions | `transactions/` list, `transactions/search` (filtered, paged, with sums), `transactions/quick` (natural language), transfers, `cashflow/{account}` |
 | Categories | `category/user`, `category/`, `category/label` |
@@ -37,7 +40,7 @@ is owned by Flyway (`src/main/resources/db/migration`); Hibernate only validates
 ### Environment
 
 `JWT_SECRET` (base64, ≥32 bytes), `JWT_EXPIRATION_MS`, `SUMRY_CORS_ALLOWED_ORIGINS`,
-`SUMRY_REGISTRATION_ENABLED`, `SPRINGDOC_ENABLED`, and for the statement email
+`SUMRY_REGISTRATION_MODE`, `SPRINGDOC_ENABLED`, and for the statement email
 `SUMRY_MAIL_HOST/PORT/USER/PASSWORD/FROM` plus `SUMRY_STATEMENT_SCHEDULED=true` to send on
 the 1st.
 
@@ -53,10 +56,16 @@ premium. When on, `FREE` users get at most `SUMRY_FREE_MAX_ACCOUNTS` (default 2)
 no `import/*` and no statement email; blocked calls answer 403
 `{"error":"plan_limit","limit":"accounts|statement_import|statement_email"}`.
 
+`SUMRY_REGISTRATION_MODE` is `closed` (default), `invite` or `open`. In invite mode a signup
+needs an unused, unexpired code from `POST /api/admin/invites`, which needs a user with role
+`ADMIN` (set it in the database: `UPDATE users SET role = 'ADMIN' WHERE email = '...'`).
+The older `SUMRY_REGISTRATION_ENABLED=true` still means `open` when no mode is set. Signups
+are limited to 5 per client address per hour.
+
 ### Building
 
 ```bash
-./gradlew test
+./gradlew test                    # integration tests need Docker (Testcontainers), else they skip
 cp .env.example .env              # fill in fresh local values
 docker compose up -d --build     # local stack with Postgres and Redis
 ```
