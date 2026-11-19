@@ -41,4 +41,18 @@ docs(readme): document plan limits
 
 Hyphens, not em dashes, in docs and UI text. Keep the tone plain.
 
-By contributing you agree that your work is released under the [AGPL-3.0](LICENSE).
+## Contributor license agreement
+
+Sumry is AGPL-3.0, and Elyes Ghazel wants to keep the option of changing the license later
+(for example to a more permissive one, or dual licensing). That needs the right to relicense
+every contribution, so pull requests are accepted under these terms:
+
+1. You wrote the contribution, or otherwise have the right to submit it.
+2. You license it under the AGPL-3.0, like the rest of the project.
+3. You also grant Elyes Ghazel a perpetual, worldwide, non-exclusive, royalty-free and
+   irrevocable right to use, modify, sublicense and relicense the contribution under other
+   terms.
+4. You keep the copyright to your contribution.
+
+Tick the box in the pull request template to agree. Without it the pull request cannot be
+merged.
