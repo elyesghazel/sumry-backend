@@ -1,0 +1,157 @@
+# Self-host stack: Postgres, Redis, the API, the web app and Caddy in front.
+# Caddy routes /api to the backend and everything else to the web app, so the browser
+# only ever talks to one origin. Usage: see README.md in this directory.
+name: sumry
+
+x-hardening: &hardening
+  restart: unless-stopped
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  postgres:
+    <<: *hardening
+    image: postgres:16.11-alpine
+    user: postgres
+    environment:
+      POSTGRES_DB: sumry
+      POSTGRES_USER: sumry
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    tmpfs:
+      - /var/run/postgresql:mode=1777
+      - /tmp:mode=1777
+    shm_size: 128m
+    mem_limit: 512m
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sumry -d sumry"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    <<: *hardening
+    image: redis:7.4.7-alpine
+    user: redis
+    # Rate limits, token revocation and the FX cache; a restart may lose them, which is fine.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    mem_limit: 128m
+    networks: [data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    <<: *hardening
+    image: ghcr.io/elyesghazel/sumry-backend:${SUMRY_VERSION:-latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sumry
+      SPRING_DATASOURCE_USERNAME: sumry
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      # Caddy sets X-Forwarded-Proto/Host; without them the API sees http on its own port
+      # and rejects the same-origin web app as a cross-origin caller. "framework" keeps the
+      # port from X-Forwarded-Host, so non-default host ports work too.
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      SUMRY_CORS_ALLOWED_ORIGINS: ${SUMRY_CORS_ALLOWED_ORIGINS:-}
+      SUMRY_BOOTSTRAP_ADMIN_EMAIL: ${SUMRY_BOOTSTRAP_ADMIN_EMAIL:-}
+      SUMRY_REGISTRATION_MODE: ${SUMRY_REGISTRATION_MODE:-}
+      SUMRY_MAIL_HOST: ${SUMRY_MAIL_HOST:-}
+      SUMRY_MAIL_PORT: ${SUMRY_MAIL_PORT:-587}
+      SUMRY_MAIL_USER: ${SUMRY_MAIL_USER:-}
+      SUMRY_MAIL_PASSWORD: ${SUMRY_MAIL_PASSWORD:-}
+      SUMRY_MAIL_FROM: ${SUMRY_MAIL_FROM:-}
+      SUMRY_MAIL_AUTH: ${SUMRY_MAIL_AUTH:-true}
+      SUMRY_MAIL_STARTTLS: ${SUMRY_MAIL_STARTTLS:-true}
+      SUMRY_STATEMENT_SCHEDULED: ${SUMRY_STATEMENT_SCHEDULED:-false}
+      SUMRY_LIMITS_ENABLED: ${SUMRY_LIMITS_ENABLED:-false}
+      SUMRY_FREE_MAX_ACCOUNTS: ${SUMRY_FREE_MAX_ACCOUNTS:-2}
+      SUMRY_AI_BRIDGE_URL: ${SUMRY_AI_BRIDGE_URL:-}
+      SUMRY_AI_BRIDGE_TOKEN: ${SUMRY_AI_BRIDGE_TOKEN:-}
+      SUMRY_AI_USERS: ${SUMRY_AI_USERS:-}
+      # Heap sized to the container limit; PDFBox keeps its font cache in the writable /tmp.
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70 -Dpdfbox.fontcache=/tmp
+    tmpfs:
+      - /tmp:mode=1777
+    mem_limit: 768m
+    # web gives it outbound access (FX rates, mail); data reaches Postgres and Redis.
+    networks: [web, data]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:48090/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      start_period: 90s
+      retries: 10
+
+  frontend:
+    <<: *hardening
+    image: ghcr.io/elyesghazel/sumry-frontend:${SUMRY_VERSION:-latest}
+    # nginx runs unprivileged; the sysctl lets it keep listening on port 80.
+    user: nginx
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    tmpfs:
+      - /var/cache/nginx:mode=1777
+      - /var/run:mode=1777
+      - /tmp:mode=1777
+    mem_limit: 64m
+    networks: [web]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  caddy:
+    <<: *hardening
+    image: caddy:2.10.2-alpine
+    # Caddy writes certificates to root-owned volumes; it keeps only the one capability
+    # it needs to bind 80 and 443.
+    cap_add:
+      - NET_BIND_SERVICE
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    environment:
+      # A domain gets automatic HTTPS; without one Caddy serves plain HTTP on :80.
+      SUMRY_SITE_ADDRESS: ${SUMRY_DOMAIN:-:80}
+    ports:
+      - ${SUMRY_HTTP_PORT:-80}:80
+      - ${SUMRY_HTTPS_PORT:-443}:443
+      - ${SUMRY_HTTPS_PORT:-443}:443/udp
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    tmpfs:
+      - /tmp:mode=1777
+    mem_limit: 128m
+    networks: [web]
+
+networks:
+  web:
+  # No route out: the databases only talk to the backend.
+  data:
+    internal: true
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
